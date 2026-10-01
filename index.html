@@ -6,13 +6,15 @@
     <meta name="theme-color" content="#fffaf0">
     <title>TRAZOS · Grafomotricidad</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="tracing.js" defer></script>
+    <script src="templates.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
     <main id="app">
       <section id="home" class="screen home" aria-labelledby="title">
         <h1 id="title">TRAZOS</h1>
-        <button id="start" class="button start-button" type="button">TRAZOS RECTOS</button>
+        <button id="start" class="button start-button" type="button">EMPEZAR</button>
       </section>
 
       <section id="exercise" class="screen exercise" aria-label="Ejercicio de trazado" hidden>
@@ -31,6 +33,10 @@
             <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 16h22 M18 7l9 9-9 9" /></svg>
           </button>
         </nav>
+        <div class="template-controls">
+          <label class="sr-only" for="template">Plantilla para practicar</label>
+          <select id="template" aria-label="Plantilla para practicar"></select>
+        </div>
         <svg id="board" role="img" aria-label="Sigue el camino desde el círculo hasta la estrella"></svg>
         <div id="completed" class="completed" hidden>
           <p id="announcement" class="sr-only" role="status"></p>

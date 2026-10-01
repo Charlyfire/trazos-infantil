@@ -23,8 +23,8 @@ h1 { font-size: clamp(64px, 12vw, 148px); line-height: 1; letter-spacing: .06em;
 .start-button { background: var(--green); color: white; min-width: min(560px, 100%); }
 .exercise { position: relative; }
 #board { display: block; width: 100%; height: 100%; cursor: crosshair; }
-.track-border { fill: none; stroke: #416b66; stroke-linecap: round; }
-.track { fill: none; stroke: var(--track); stroke-linecap: round; }
+.track-border { fill: none; stroke: #416b66; stroke-linecap: round; stroke-linejoin: round; }
+.track { fill: none; stroke: var(--track); stroke-linecap: round; stroke-linejoin: round; }
 .ink { fill: none; stroke: var(--green); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .start-disc { fill: var(--green); stroke: var(--paper); stroke-width: 8; }
 .direction { fill: none; stroke: white; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
@@ -36,6 +36,11 @@ h1 { font-size: clamp(64px, 12vw, 148px); line-height: 1; letter-spacing: .06em;
 .mode-controls { display: flex; padding: 6px; gap: 6px; background: #e0ece9; border-radius: 24px; }
 .mode-controls button { min-height: 60px; padding: 12px 24px; border-radius: 18px; background: transparent; color: var(--navy); font-size: clamp(14px, 1.7vw, 24px); font-weight: 800; }
 .mode-controls button[aria-pressed="true"] { background: var(--green); color: white; }
+.template-controls { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); z-index: 1; }
+.template-controls select { width: 100%; min-height: 52px; border: 2px solid #416b66; border-radius: 16px; padding: 10px 16px; font: inherit; font-size: 20px; font-weight: 700; background: var(--paper); color: var(--navy); touch-action: manipulation; }
+.template-controls select:focus-visible { outline: 4px solid var(--green); outline-offset: 3px; }
+.guide { fill: #527b75; pointer-events: none; }
+.route [data-visible="false"] { visibility: hidden; }
 .completed { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 24px; width: min(720px, calc(100% - 32px)); animation: appear .3s ease-out; }
 .completed .button { flex: 1; padding: 22px; }
 .repeat-button { background: #e0ece9; color: var(--navy); }
@@ -49,5 +54,7 @@ h1 { font-size: clamp(64px, 12vw, 148px); line-height: 1; letter-spacing: .06em;
 @media (max-width: 700px) { .teacher-controls { top: 12px; left: 8px; right: 8px; gap: 6px; } .icon-button { width: 44px; height: 60px; border-radius: 14px; } .icon-button svg { width: 28px; } .mode-controls { padding: 4px; gap: 2px; border-radius: 16px; } .mode-controls button { min-height: 52px; padding: 10px 6px; font-size: 12px; border-radius: 12px; } }
 @media (max-width: 600px) { .button { min-height: 84px; padding: 20px; border-radius: 22px; } .completed { gap: 12px; } }
 @media (max-width: 360px) { .teacher-controls { gap: 4px; } .mode-controls { gap: 0; } .mode-controls button { padding: 10px 4px; font-size: 10px; } }
+@media (max-width: 700px), (max-height: 450px) { .template-controls { top: 82px; } .template-controls select { min-height: 40px; padding: 6px 12px; font-size: 16px; } }
+@media (max-height: 450px) { .teacher-controls { top: 8px; } .icon-button { height: 60px; } .mode-controls button { min-height: 48px; padding-top: 8px; padding-bottom: 8px; } }
 @media (max-height: 450px) { .home { gap: 24px; } h1 { font-size: 64px; } .button { min-height: 68px; padding: 16px; font-size: 24px; } .completed { bottom: 12px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
