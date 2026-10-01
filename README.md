@@ -14,6 +14,18 @@ python3 -m http.server 8000
 
 Abre `http://localhost:8000`. En la PDI se recomienda la pantalla completa del navegador (F11 en equipos compatibles).
 
+## Diseño para PDI
+
+La pantalla de ejercicios utiliza `fondo-trazos.png`, situado junto a `index.html`, como fondo con `background-size: cover`, centrado y sin repetición. Conserva la proporción y puede recortar los bordes en otras relaciones de aspecto. El fondo permanece detrás del SVG y de los botones; no hay paisaje añadido mediante HTML o CSS. **El PNG aún no está disponible en la carpeta ni en el repositorio revisado:** hasta incorporarlo se muestra el color de fondo suave definido en CSS.
+
+El panel del profesor agrupa los controles en dos filas flexibles. Los botones activos se distinguen por su relleno turquesa, borde y texto blanco. El selector conserva el desplegable nativo y añade un icono SVG que cambia según la plantilla y una flecha visible. Se mantienen las 14 familias y todos los controles de altura, ayuda, demostración y repetición.
+
+Las verticales tienen un cohete SVG orientado hacia abajo en el mismo punto de inicio, con flecha de dirección. En práctica siguen apareciendo cinco figuras cuando hay ancho suficiente; en pantallas muy grandes se agrupan en una zona central de hasta 1.360 píxeles CSS. Los botones de repetición se alinean con esas columnas. El resto de plantillas conserva su distribución.
+
+Los carriles tienen relleno crema claro y borde turquesa. Los inicios muestran una variación muy suave de opacidad, sin desplazar su zona táctil. La estrella dorada tiene un brillo breve al completar y conserva un halo con borde verde hasta reiniciar. Las animaciones respetan `prefers-reduced-motion`. Se conservan el grosor del carril, el radio de inicio y la tolerancia; `tracing.js` y `templates.js` no cambian con este rediseño.
+
+El dibujo reserva espacio bajo la altura real del panel superior para evitar solapamientos en resoluciones pequeñas. En la PDI conviene revisar el alcance de los niños, la legibilidad de los botones desde lejos, el recorte del PNG y el contraste del carril sobre el paisaje.
+
 ## Demostración y práctica
 
 Pulsa **EMPEZAR**. La aplicación abre **DEMOSTRACIÓN**, con una figura grande para el profesor. El selector superior permite elegir directamente cualquiera de las 14 plantillas. Pulsa **PRÁCTICA** para mostrar varias copias de la misma figura, una al lado de otra.

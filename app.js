@@ -29,6 +29,24 @@
   const settingsPanel = document.querySelector("#settings-panel");
   const settingsButton = document.querySelector("#settings-button");
   const playButton = document.querySelector("#play-demo");
+  const teacherPanel = document.querySelector("#teacher-panel");
+  // Presentation only: share icon paths between related template families.
+  const TEMPLATE_ICONS = {
+    vertical: "M16 4v24m-8-8 8 8 8-8",
+    horizontal: "M4 16h24m-8-8 8 8-8 8",
+    down: "M6 6l20 20M14 26h12V14",
+    up: "M6 26 26 6M14 6h12v12",
+    plus: "M16 5v22M5 16h22",
+    ovals: "M3 16h26M12 16a4 8 0 1 0 8 0 4 8 0 1 0-8 0",
+    wave: "M3 16c4-15 9-15 13 0s9 15 13 0",
+    circle: "M16 4a12 12 0 1 0 0 24 12 12 0 1 0 0-24",
+    "double-circle": "M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26M16 9a7 7 0 1 0 0 14 7 7 0 1 0 0-14",
+    "circle-plus": "M10 8a8 8 0 1 0 0 16 8 8 0 1 0 0-16M25 10v12M19 16h12",
+    cross: "M6 6l20 20M6 26 26 6",
+  };
+  TEMPLATE_ICONS["bars-dots"] = TEMPLATE_ICONS.vertical;
+  TEMPLATE_ICONS["dot-wave"] = TEMPLATE_ICONS.wave;
+  TEMPLATE_ICONS["dots-line"] = TEMPLATE_ICONS.horizontal;
   const preferences = { heightRatio: SETTINGS.lowerAreaRatio, assisted: false };
   try {
     const saved = JSON.parse(window.localStorage.getItem("trazos.preferences.v1"));
@@ -189,12 +207,17 @@
     const ink = svgNode("path", { class: "ink", d: "", "stroke-width": SETTINGS.inkWidth*scale }, group);
     const destination = svgNode("g", { class: "destination", transform: `translate(${end.x} ${end.y}) scale(${scale})` }, group);
     svgNode("circle", { class: "star-halo", r: 68 }, destination);
-    svgNode("path", { class: "star", d: "M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" }, destination);
-    const origin = svgNode("g", { class: "origin", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
-    svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, origin);
+    const goalArt = svgNode("g", { class: "goal-art" }, destination);
+    svgNode("path", { class: "star", d: "M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" }, goalArt);
+    svgNode("path", { class: "star-shine", d: "M-8-30-3-39 4-24 M-32-9-22-10" }, goalArt);
+    const origin = svgNode("g", { class: "origin", "data-kind": route.templateId === "vertical" ? "rocket" : "arrow", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
+    const startArt = svgNode("g", { class: "start-art" }, origin);
+    svgNode("circle", { class: "start-glow", r: 60 }, startArt);
+    svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, startArt);
+    if (route.templateId === "vertical") makeRocket(startArt);
     const tangent = path.segments[0];
     const angle = Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90;
-    const direction = svgNode("path", { class: "direction", d: "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
+    const direction = svgNode("path", { class: "direction", d: route.templateId === "vertical" ? "M-10 36 0 46 10 36 M0 46V30" : "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
     const tracker = Geometry.createTracker(path, {
       startRadius: SETTINGS.startRadius*scale,
       endRadius: SETTINGS.endRadius*scale,
@@ -207,10 +230,20 @@
     return { path, start, end, scale, group, ink, origin, direction, destination, tracker, closed: spec.closed, finished: false, resuming: false, inkPath: "" };
   }
 
+  function makeRocket(parent) {
+    const rocket = svgNode("g", { class: "rocket", "aria-hidden": "true" }, parent);
+    svgNode("path", { class: "rocket-flame", d: "M-10-24Q-14-33 0-43 14-33 10-24Z" }, rocket);
+    svgNode("path", { class: "rocket-fin", d: "M-15-14Q-33-10-30 15l16-7 M15-14Q33-10 30 15L14 8" }, rocket);
+    svgNode("path", { class: "rocket-body", d: "M-16-25Q-24 7 0 27 24 7 16-25Z" }, rocket);
+    svgNode("path", { class: "rocket-nose", d: "M-11 13Q0 31 11 13Z" }, rocket);
+    svgNode("circle", { class: "rocket-window", cx: 0, cy: -7, r: 9 }, rocket);
+    svgNode("path", { class: "rocket-shine", d: "M-8-19q-3 7-2 12" }, rocket);
+  }
+
   function makeRoute(current, cell, index) {
     const scale = Math.min(1,cell.w/220,cell.h/300);
     const group = svgNode("g", { class: "route", "data-route": index, "data-finished": "false" });
-    const route = { cell, group, strokes: [], currentStroke: 0, pointerId: null, finished: false };
+    const route = { cell, group, templateId: current.id, strokes: [], currentStroke: 0, pointerId: null, finished: false };
     route.strokes = Templates.build(current.id,cell,scale).map((spec,i) => makeStroke(route,spec,i));
     updateMarkers(route);
     return route;
@@ -227,10 +260,18 @@
     board.setAttribute("viewBox", `0 0 ${width} ${height}`);
     // Small viewports need a little extra room for the teacher's template picker.
     // In every case, drawings stay within the lower 70% of the display.
-    const lowerTop = Math.max(height*(1-preferences.heightRatio),height <= 450 ? 132 : 190);
+    const controlBottom = teacherPanel.offsetHeight ? teacherPanel.getBoundingClientRect().bottom+16 : height <= 450 ? 132 : 190;
+    const lowerTop = Math.max(height*(1-preferences.heightRatio),controlBottom);
     const footer = height <= 450 ? 92 : width <= 600 ? 120 : 140;
-    const area = { x: 16, y: lowerTop, w: width-32, h: Math.max(1,height-lowerTop-footer) };
     const current = EXERCISES[exerciseIndex];
+    // Keep the five vertical lanes together on very wide PDIs, with their
+    // individual repeat controls aligned beneath the same columns.
+    const areaWidth = mode === "practice" && current.id === "vertical" ? Math.min(width-32,1360) : width-32;
+    const area = { x: (width-areaWidth)/2, y: lowerTop, w: areaWidth, h: Math.max(1,height-lowerTop-footer) };
+    individualControls.style.left = `${area.x}px`;
+    individualControls.style.right = `${width-area.x-area.w}px`;
+    exercise.setAttribute("data-template",current.id);
+    document.querySelector("#template-symbol").setAttribute("d",TEMPLATE_ICONS[current.id]);
     const available = Math.floor(area.w/(current.minWidth || SETTINGS.minColumnWidth));
     const count = mode === "demo" ? 1 : Math.max(1,Math.min(current.copies,available));
     routes = Array.from({ length: count }, (_,index) => makeRoute(current,
@@ -259,7 +300,7 @@
     picker.value = String(exerciseIndex);
     updateTeacherControls();
     refreshCompletion();
-    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en el círculo y sigue el camino hasta su estrella.`);
+    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en ${current.id === "vertical" ? "el círculo con el cohete" : "el círculo"} y sigue el camino hasta su estrella.`);
     if (mode === "demo" && settingsPanel.hidden && !reducedMotion) playDemonstration();
   }
 
