@@ -3,13 +3,16 @@
 (() => {
   const SETTINGS = {
     pathWidth: 100,
-    inkWidth: 72,
+    inkWidth: 36,
     tolerance: 80,
     startRadius: 54,
     endRadius: 50,
     lowerAreaRatio: 0.7,
     minColumnWidth: 220,
     sampleStep: 6, // Inspect actual movement between Pointer Event samples.
+    demoSpeed: 95,
+    demoMinDuration: 5000,
+    demoMaxDuration: 12000,
   };
   const Geometry = globalThis.TraceGeometry;
   const Templates = globalThis.TraceTemplates;
@@ -22,6 +25,17 @@
   const demo = document.querySelector("#demo");
   const practice = document.querySelector("#practice");
   const picker = document.querySelector("#template");
+  const individualControls = document.querySelector("#individual-controls");
+  const settingsPanel = document.querySelector("#settings-panel");
+  const settingsButton = document.querySelector("#settings-button");
+  const playButton = document.querySelector("#play-demo");
+  const preferences = { heightRatio: SETTINGS.lowerAreaRatio, assisted: false };
+  try {
+    const saved = JSON.parse(window.localStorage.getItem("trazos.preferences.v1"));
+    if (saved && Number.isFinite(saved.heightRatio)) preferences.heightRatio = Math.max(0.45,Math.min(0.7,saved.heightRatio));
+    if (saved && typeof saved.assisted === "boolean") preferences.assisted = saved.assisted;
+  } catch { /* Optional device preferences; file:// or private storage may deny access. */ }
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
   const activePointers = new Map();
   let exerciseIndex = 0;
   let mode = "demo";
@@ -29,6 +43,62 @@
   let audioContext;
   let resizeFrame;
   let lastSoundAt = -Infinity;
+  let demonstration = null;
+  let demoFrame = null;
+  let demoDot = null;
+
+  function activate(button, callback) {
+    let pressed = null;
+    // Native compatibility clicks may omit secondary touch contacts. Handle
+    // pointers directly so a child can repeat while another keeps drawing.
+    button.addEventListener("pointerdown", event => {
+      if (button.disabled || event.button !== 0 || pressed !== null) return;
+      event.preventDefault();
+      pressed = event.pointerId;
+      button.setPointerCapture(pressed);
+    });
+    button.addEventListener("pointerup", event => {
+      if (pressed !== event.pointerId) return;
+      event.preventDefault();
+      pressed = null;
+      if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
+      const box = button.getBoundingClientRect();
+      if (!button.disabled && event.clientX >= box.left && event.clientX <= box.left+box.width
+        && event.clientY >= box.top && event.clientY <= box.top+box.height) callback();
+    });
+    for (const name of ["pointercancel","lostpointercapture"]) button.addEventListener(name, event => {
+      if (pressed === event.pointerId) pressed = null;
+      if (name === "pointercancel" && button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
+    });
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      if (!button.disabled && (event.detail === 0 || event.detail === undefined)) callback();
+    });
+  }
+
+  function savePreferences() {
+    try { window.localStorage.setItem("trazos.preferences.v1",JSON.stringify(preferences)); } catch { /* Optional. */ }
+  }
+
+  function updateTeacherControls() {
+    const labels = { 70: "Altura habitual", 65: "Un poco más baja", 60: "Baja", 55: "Más baja", 50: "Muy baja", 45: "La más baja" };
+    document.querySelector("#height-label").textContent = labels[Math.round(preferences.heightRatio*100)] || "Altura ajustada";
+    document.querySelector("#height-down").disabled = preferences.heightRatio <= 0.45;
+    document.querySelector("#height-up").disabled = preferences.heightRatio >= 0.7;
+    document.querySelector("#strict").setAttribute("aria-pressed",String(!preferences.assisted));
+    document.querySelector("#help").setAttribute("aria-pressed",String(preferences.assisted));
+    playButton.hidden = mode !== "demo";
+    playButton.disabled = reducedMotion || activePointers.size > 0;
+  }
+
+  function refreshCompletion() {
+    const allFinished = routes.length > 0 && routes.every(route => route.finished);
+    exercise.setAttribute("data-all-finished",String(allFinished));
+    // With multiple children, keep every individual repeat button reachable.
+    completed.hidden = !(allFinished && routes.length === 1);
+    individualControls.hidden = !completed.hidden;
+    announcement.textContent = allFinished ? "¡Habéis llegado a las estrellas!" : "";
+  }
 
   for (const [index, template] of EXERCISES.entries()) {
     const option = document.createElement("option");
@@ -49,8 +119,10 @@
     if (!route) return;
     activePointers.delete(id);
     route.pointerId = null;
+    route.strokes[route.currentStroke]?.tracker.pause();
     if (board.hasPointerCapture(id)) board.releasePointerCapture(id);
     updateMarkers(route);
+    updateTeacherControls();
   }
 
   function releaseAllPointers() {
@@ -59,9 +131,18 @@
 
   function updateMarkers(route) {
     for (const [index, stroke] of route.strokes.entries()) {
-      const current = !route.finished && !stroke.finished && index === route.currentStroke;
-      const nearEnd = stroke.closed && route.pointerId !== null && stroke.tracker.state.progress > stroke.path.length*0.65;
-      stroke.origin.setAttribute("data-visible", String(current && !nearEnd));
+      const preview = demonstration?.route === route;
+      const current = preview ? index === demonstration.strokeIndex : !route.finished && !stroke.finished && index === route.currentStroke;
+      const pausedResume = current && !preview && preferences.assisted && route.pointerId === null && stroke.tracker.state.lastAccepted !== null;
+      const progress = preview ? demonstration.fraction : stroke.tracker.state.progress/stroke.path.length;
+      const nearEnd = stroke.closed && (preview || route.pointerId !== null || pausedResume) && progress > 0.65;
+      const marker = pausedResume ? stroke.tracker.state.lastAccepted : stroke.start;
+      stroke.origin.setAttribute("transform",`translate(${marker.x} ${marker.y}) scale(${stroke.scale})`);
+      stroke.origin.setAttribute("data-resume",String(pausedResume));
+      const along = pausedResume ? stroke.tracker.state.along : 0;
+      const tangent = stroke.path.segments.find(segment => segment.start+segment.length >= along) || stroke.path.segments.at(-1);
+      stroke.direction.setAttribute("transform",`rotate(${Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90})`);
+      stroke.origin.setAttribute("data-visible", String(current && (pausedResume || (!nearEnd && (preview || !stroke.resuming)))));
       stroke.destination.setAttribute("data-visible", String(stroke.finished || (current && (!stroke.closed || nearEnd))));
     }
   }
@@ -70,12 +151,14 @@
     stroke.tracker.reset();
     stroke.inkPath = "";
     stroke.finished = false;
+    stroke.resuming = false;
     stroke.ink.setAttribute("d", "");
     stroke.group.classList.remove("celebrating");
     stroke.group.setAttribute("data-finished", "false");
   }
 
   function resetRoute(route) {
+    if (demonstration?.route === route) cancelDemonstration();
     if (route.pointerId !== null) releasePointer(route.pointerId);
     route.currentStroke = 0;
     route.finished = false;
@@ -85,10 +168,10 @@
   }
 
   function reset() {
+    cancelDemonstration();
     releaseAllPointers();
     routes.forEach(resetRoute);
-    completed.hidden = true;
-    announcement.textContent = "";
+    refreshCompletion();
   }
 
   function makeStroke(route, spec, index) {
@@ -111,16 +194,17 @@
     svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, origin);
     const tangent = path.segments[0];
     const angle = Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90;
-    svgNode("path", { class: "direction", d: "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
+    const direction = svgNode("path", { class: "direction", d: "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
     const tracker = Geometry.createTracker(path, {
       startRadius: SETTINGS.startRadius*scale,
       endRadius: SETTINGS.endRadius*scale,
       tolerance: Math.min(SETTINGS.tolerance*scale,spec.tolerance ?? Infinity),
       sampleStep: SETTINGS.sampleStep*scale,
+      joinRadius: SETTINGS.inkWidth*scale/2,
       contains: point => point.x >= route.cell.x && point.x <= route.cell.x+route.cell.w
         && point.y >= route.cell.y && point.y <= route.cell.y+route.cell.h,
     });
-    return { path, start, end, scale, group, ink, origin, destination, tracker, closed: spec.closed, finished: false, inkPath: "" };
+    return { path, start, end, scale, group, ink, origin, direction, destination, tracker, closed: spec.closed, finished: false, resuming: false, inkPath: "" };
   }
 
   function makeRoute(current, cell, index) {
@@ -133,15 +217,17 @@
   }
 
   function layout() {
+    cancelDemonstration();
     releaseAllPointers();
     completed.hidden = true;
     announcement.textContent = "";
     board.replaceChildren();
+    individualControls.replaceChildren();
     const { width, height } = board.getBoundingClientRect();
     board.setAttribute("viewBox", `0 0 ${width} ${height}`);
     // Small viewports need a little extra room for the teacher's template picker.
     // In every case, drawings stay within the lower 70% of the display.
-    const lowerTop = Math.max(height*(1-SETTINGS.lowerAreaRatio),height <= 450 ? 132 : 190);
+    const lowerTop = Math.max(height*(1-preferences.heightRatio),height <= 450 ? 132 : 190);
     const footer = height <= 450 ? 92 : width <= 600 ? 120 : 140;
     const area = { x: 16, y: lowerTop, w: width-32, h: Math.max(1,height-lowerTop-footer) };
     const current = EXERCISES[exerciseIndex];
@@ -149,10 +235,32 @@
     const count = mode === "demo" ? 1 : Math.max(1,Math.min(current.copies,available));
     routes = Array.from({ length: count }, (_,index) => makeRoute(current,
       { x: area.x+index*area.w/count, y: area.y, w: area.w/count, h: area.h }, index));
+    for (const [index, route] of routes.entries()) {
+      const button = document.createElement("button");
+      button.setAttribute("type","button");
+      button.setAttribute("class","individual-repeat");
+      button.setAttribute("data-repeat-route",index);
+      button.setAttribute("aria-label",`Repetir figura ${index+1}`);
+      const icon = svgNode("svg",{ viewBox: "0 0 32 32", "aria-hidden": "true" },button);
+      svgNode("path",{ d: "M7 11a11 11 0 1 1-1 9 M7 4v8h8" },icon);
+      const label = document.createElement("span");
+      label.textContent = "REPETIR";
+      button.appendChild(label);
+      activate(button, () => {
+        if (!routes.includes(route)) return;
+        resetRoute(route);
+        refreshCompletion();
+      });
+      individualControls.appendChild(button);
+    }
+    demoDot = svgNode("circle",{ class: "demo-point", "data-visible": "false", r: 18, cx: 0, cy: 0 });
     demo.setAttribute("aria-pressed", String(mode === "demo"));
     practice.setAttribute("aria-pressed", String(mode === "practice"));
     picker.value = String(exerciseIndex);
+    updateTeacherControls();
+    refreshCompletion();
     board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en el círculo y sigue el camino hasta su estrella.`);
+    if (mode === "demo" && settingsPanel.hidden && !reducedMotion) playDemonstration();
   }
 
   function showExercise(index) {
@@ -166,6 +274,94 @@
     if (mode === nextMode) return;
     mode = nextMode;
     layout();
+  }
+
+  function cancelDemonstration() {
+    if (demoFrame !== null) cancelAnimationFrame(demoFrame);
+    demoFrame = null;
+    demonstration = null;
+    demoDot?.setAttribute("data-visible","false");
+    playButton.setAttribute("aria-pressed","false");
+    playButton.setAttribute("aria-label","Ver demostración lenta");
+    playButton.setAttribute("title","Ver demostración lenta");
+    document.querySelector("#demo-symbol").setAttribute("d","m10 5 18 11-18 11Z");
+    exercise.setAttribute("data-demonstrating","false");
+    routes.forEach(updateMarkers);
+  }
+
+  function playDemonstration() {
+    if (mode !== "demo" || !routes.length || !settingsPanel.hidden || reducedMotion || activePointers.size) return;
+    cancelDemonstration();
+    const session = { route: routes[0], strokeIndex: 0, fraction: 0, started: null, pause: false };
+    demonstration = session;
+    demoDot.setAttribute("data-visible","true");
+    playButton.setAttribute("aria-pressed","true");
+    playButton.setAttribute("aria-label","Detener demostración");
+    playButton.setAttribute("title","Detener demostración");
+    document.querySelector("#demo-symbol").setAttribute("d","M8 8h16v16H8Z");
+    exercise.setAttribute("data-demonstrating","true");
+
+    function positionDot() {
+      const stroke = session.route.strokes[session.strokeIndex];
+      const point = Geometry.at(stroke.path,stroke.path.length*session.fraction);
+      demoDot.setAttribute("cx",point.x);
+      demoDot.setAttribute("cy",point.y);
+      demoDot.setAttribute("r",18*stroke.scale);
+      updateMarkers(session.route);
+    }
+    function frame(timestamp) {
+      if (demonstration !== session) return;
+      if (session.started === null) session.started = timestamp;
+      const stroke = session.route.strokes[session.strokeIndex];
+      if (session.pause) {
+        const last = session.strokeIndex === session.route.strokes.length-1;
+        if (timestamp-session.started >= (last ? 1000 : 600)) {
+          if (last) { cancelDemonstration(); return; }
+          session.strokeIndex++;
+          session.fraction = 0;
+          session.started = timestamp;
+          session.pause = false;
+        }
+      } else {
+        const duration = Math.max(SETTINGS.demoMinDuration,Math.min(SETTINGS.demoMaxDuration,stroke.path.length/(SETTINGS.demoSpeed*stroke.scale)*1000));
+        session.fraction = Math.min(1,(timestamp-session.started)/duration);
+        if (session.fraction === 1) { session.pause = true; session.started = timestamp; }
+      }
+      positionDot();
+      demoFrame = requestAnimationFrame(frame);
+    }
+    positionDot();
+    demoFrame = requestAnimationFrame(frame);
+  }
+
+  function openSettings() {
+    cancelDemonstration();
+    releaseAllPointers();
+    settingsPanel.hidden = false;
+    settingsButton.setAttribute("aria-expanded","true");
+    document.querySelector("#settings-close").focus({ preventScroll: true });
+  }
+
+  function closeSettings() {
+    settingsPanel.hidden = true;
+    settingsButton.setAttribute("aria-expanded","false");
+    settingsButton.focus({ preventScroll: true });
+  }
+
+  function changeHeight(delta) {
+    const next = Math.round(Math.max(0.45,Math.min(0.7,preferences.heightRatio+delta))*100)/100;
+    if (next === preferences.heightRatio) return;
+    preferences.heightRatio = next;
+    savePreferences();
+    layout();
+  }
+
+  function setAssisted(value) {
+    preferences.assisted = value;
+    releaseAllPointers();
+    routes.forEach(updateMarkers);
+    savePreferences();
+    updateTeacherControls();
   }
 
   function coordinates(event) {
@@ -222,10 +418,7 @@
     }
     updateMarkers(route);
     playPositiveSound();
-    if (routes.every(item => item.finished)) {
-      announcement.textContent = "¡Habéis llegado a las estrellas!";
-      completed.hidden = false;
-    }
+    refreshCompletion();
   }
 
   function advance(route, event) {
@@ -238,23 +431,33 @@
   board.addEventListener("pointerdown", event => {
     event.preventDefault();
     // Non-primary touch/pen pointers represent the other children.
-    if (event.button !== 0 || activePointers.has(event.pointerId)) return;
+    if (!settingsPanel.hidden || event.button !== 0 || activePointers.has(event.pointerId)) return;
+    cancelDemonstration();
     const point = coordinates(event);
     const route = routes.find(item => {
       if (item.finished || item.pointerId !== null) return false;
       const stroke = item.strokes[item.currentStroke];
+      if (preferences.assisted && stroke.tracker.state.lastAccepted) return stroke.tracker.canResume(point);
       return Geometry.distance(point,stroke.start) <= SETTINGS.startRadius*stroke.scale;
     });
     if (!route) return;
     const stroke = route.strokes[route.currentStroke];
     // Preserve earlier strokes of this figure and every other child's work.
-    resetStroke(stroke);
+    let marks;
+    if (preferences.assisted && stroke.tracker.state.lastAccepted) {
+      marks = stroke.tracker.resume(point);
+      stroke.resuming = true;
+    } else {
+      resetStroke(stroke);
+      marks = stroke.tracker.start(point);
+    }
     prepareAudio();
     route.pointerId = event.pointerId;
     activePointers.set(event.pointerId,route);
     board.setPointerCapture(event.pointerId);
-    drawMarks(stroke,stroke.tracker.start(point));
+    drawMarks(stroke,marks);
     updateMarkers(route);
+    updateTeacherControls();
   });
 
   board.addEventListener("pointermove", event => {
@@ -278,17 +481,26 @@
   });
   for (const name of ["pointercancel","lostpointercapture"]) board.addEventListener(name,event => releasePointer(event.pointerId));
 
-  document.querySelector("#start").addEventListener("click", () => { prepareAudio(); mode = "demo"; showExercise(0); });
-  demo.addEventListener("click", () => setMode("demo"));
-  practice.addEventListener("click", () => setMode("practice"));
+  activate(document.querySelector("#start"), () => { prepareAudio(); mode = "demo"; showExercise(0); });
+  activate(demo, () => setMode("demo"));
+  activate(practice, () => setMode("practice"));
+  activate(playButton, () => { if (demonstration) cancelDemonstration(); else playDemonstration(); });
+  activate(settingsButton, () => { if (settingsPanel.hidden) openSettings(); else closeSettings(); });
+  activate(document.querySelector("#settings-close"),closeSettings);
+  activate(document.querySelector("#height-down"), () => changeHeight(-0.05));
+  activate(document.querySelector("#height-up"), () => changeHeight(0.05));
+  activate(document.querySelector("#strict"), () => setAssisted(false));
+  activate(document.querySelector("#help"), () => setAssisted(true));
   picker.addEventListener("change", () => {
     const index = Number(picker.value);
     if (Number.isInteger(index) && index >= 0 && index < EXERCISES.length) showExercise(index);
   });
-  for (const id of ["repeat","clear"]) document.querySelector(`#${id}`).addEventListener("click",reset);
-  for (const id of ["next","advance"]) document.querySelector(`#${id}`).addEventListener("click", () => showExercise((exerciseIndex+1)%EXERCISES.length));
-  document.querySelector("#home-button").addEventListener("click", () => {
+  for (const id of ["repeat","clear"]) activate(document.querySelector(`#${id}`),reset);
+  for (const id of ["next","advance"]) activate(document.querySelector(`#${id}`), () => showExercise((exerciseIndex+1)%EXERCISES.length));
+  activate(document.querySelector("#home-button"), () => {
     reset();
+    settingsPanel.hidden = true;
+    settingsButton.setAttribute("aria-expanded","false");
     exercise.hidden = true;
     home.hidden = false;
     document.querySelector("#start").focus({ preventScroll: true });
@@ -298,8 +510,13 @@
     cancelAnimationFrame(resizeFrame);
     resizeFrame = requestAnimationFrame(() => { if (!exercise.hidden) layout(); });
   });
-  window.addEventListener("blur",releaseAllPointers);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAllPointers(); });
+  window.addEventListener("blur", () => { cancelDemonstration(); releaseAllPointers(); });
+  document.addEventListener("keydown",event => {
+    if (event.key !== "Escape") return;
+    if (!settingsPanel.hidden) { event.preventDefault(); closeSettings(); }
+    else cancelDemonstration();
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelDemonstration(); releaseAllPointers(); } });
   document.addEventListener("wheel",event => event.preventDefault(),{ passive: false });
   document.addEventListener("touchmove",event => event.preventDefault(),{ passive: false });
   document.addEventListener("gesturestart",event => event.preventDefault(),{ passive: false });

@@ -36,10 +36,32 @@
         <div class="template-controls">
           <label class="sr-only" for="template">Plantilla para practicar</label>
           <select id="template" aria-label="Plantilla para practicar"></select>
+          <button id="play-demo" class="small-icon-button" type="button" aria-label="Ver demostración lenta" title="Ver demostración lenta" aria-pressed="false">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path id="demo-symbol" d="m10 5 18 11-18 11Z" /></svg>
+          </button>
+          <button id="settings-button" class="small-icon-button" type="button" aria-label="Ajustes del profesor" title="Ajustes del profesor" aria-controls="settings-panel" aria-expanded="false">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 8h22M5 16h22M5 24h22" /><circle cx="11" cy="8" r="3" /><circle cx="22" cy="16" r="3" /><circle cx="14" cy="24" r="3" /></svg>
+          </button>
         </div>
+        <section id="settings-panel" class="settings-panel" aria-labelledby="settings-title" hidden>
+          <h2 id="settings-title">AJUSTES DEL PROFESOR</h2>
+          <p>Altura de los dibujos</p>
+          <div class="height-controls">
+            <button id="height-down" type="button">BAJAR</button>
+            <output id="height-label">Altura habitual</output>
+            <button id="height-up" type="button">SUBIR</button>
+          </div>
+          <p>Cómo continuar el trazo</p>
+          <div class="help-controls" role="group" aria-label="Ayuda para continuar">
+            <button id="strict" type="button" aria-pressed="true">GESTO CONTINUO</button>
+            <button id="help" type="button" aria-pressed="false">CON AYUDA</button>
+          </div>
+          <button id="settings-close" class="settings-close" type="button">LISTO</button>
+        </section>
         <svg id="board" role="img" aria-label="Sigue el camino desde el círculo hasta la estrella"></svg>
+        <div id="individual-controls" class="individual-controls" aria-label="Repetir cada figura"></div>
+        <p id="announcement" class="sr-only" role="status"></p>
         <div id="completed" class="completed" hidden>
-          <p id="announcement" class="sr-only" role="status"></p>
           <button id="repeat" class="button repeat-button" type="button">REPETIR</button>
           <button id="next" class="button next-button" type="button">SIGUIENTE</button>
         </div>

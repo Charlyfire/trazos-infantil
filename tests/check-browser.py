@@ -80,7 +80,7 @@ with sync_playwright() as p:
                         mouse_trace(page,stroke)
                         assert finished(stroke),f'Mouse: {template}/{mode}'
                     assert finished(figure)
-                assert page.locator('#completed').is_visible()
+                assert page.locator('#exercise').get_attribute('data-all-finished') == 'true'
                 page.locator('#clear').click()
                 # Trace up to three figures at once. Each component is a new gesture.
                 cdp = context.new_cdp_session(page)
@@ -97,12 +97,64 @@ with sync_playwright() as p:
                         assert all(finished(s) for s in strokes),'Independent simultaneous touch strokes'
                     assert all(finished(f) for f in batch)
                 cdp.detach()
-                assert page.locator('#completed').is_visible()
+                assert page.locator('#exercise').get_attribute('data-all-finished') == 'true'
                 if width == 1280 and height == 720 and mode == 'practice' and template in [0,6,11,12]:
                     page.screenshot(path=f'/tmp/trazos-template-{template}.png')
                 page.mouse.wheel(0,900)
                 assert page.evaluate('scrollX === 0 && scrollY === 0')
                 assert page.locator('#board').evaluate('el => getComputedStyle(el).touchAction') == 'none'
+        # Teacher height and optional continuation mode.
+        page.select_option('#template','0')
+        before_y = stroke_model(page.locator('.stroke').first)(0)[1]
+        page.locator('#settings-button').click()
+        page.locator('#height-down').click()
+        page.locator('#help').click()
+        page.locator('#settings-close').click()
+        assert stroke_model(page.locator('.stroke').first)(0)[1] > before_y
+        assert page.evaluate("JSON.parse(localStorage.getItem('trazos.preferences.v1')).assisted")
+        stroke = page.locator('.stroke').first
+        point = stroke_model(stroke)
+        # Accepted ink retains a real lateral offset.
+        offset = 30*point.scale
+        page.mouse.move(point(0)[0]+offset,point(0)[1]);page.mouse.down()
+        for step in range(1,31):
+            x,y = point(step/100);page.mouse.move(x+offset,y)
+        page.mouse.up()
+        values = [float(v) for v in re.findall(r'-?\d+(?:\.\d+)?',stroke.locator('.ink').get_attribute('d'))]
+        assert all(abs(x-point(0)[0]-offset)<0.02 for x in values[::2]), 'Ink is not snapped to template'
+        assert stroke.locator('.origin').get_attribute('data-resume') == 'true'
+        prefix = stroke.locator('.ink').get_attribute('d')
+        mouse_trace(page,stroke,0.3,1)
+        assert finished(stroke) and stroke.locator('.ink').get_attribute('d').startswith(prefix)
+        page.locator('#clear').click()
+        # Repeating a secondary child's figure must keep the first contact alive.
+        figures = page.locator('.route')
+        if figures.count() > 1:
+            second = figures.nth(1).locator('.stroke').first
+            mouse_trace(page,second)
+            assert finished(figures.nth(1))
+            first = figures.first.locator('.stroke').first
+            point = stroke_model(first)
+            cdp = context.new_cdp_session(page)
+            touch(cdp,'touchStart',[(1,point(0))]);touch(cdp,'touchMove',[(1,point(0.3))])
+            prefix = first.locator('.ink').get_attribute('d')
+            button = page.locator('.individual-repeat').nth(1).bounding_box()
+            centre = (button['x']+button['width']/2,button['y']+button['height']/2)
+            touch(cdp,'touchStart',[(1,point(0.3)),(2,centre)])
+            touch(cdp,'touchEnd',[(1,point(0.3))])
+            assert not finished(figures.nth(1)) and first.locator('.ink').get_attribute('d') == prefix
+            touch(cdp,'touchMove',[(1,point(0.5))])
+            assert first.locator('.ink').get_attribute('d') != prefix
+            touch(cdp,'touchEnd',[]);cdp.detach()
+        page.locator('#demo').click()
+        dot = page.locator('.demo-point')
+        y0 = float(dot.get_attribute('cy'))
+        page.wait_for_timeout(1100)
+        assert float(dot.get_attribute('cy')) > y0
+        assert page.locator('.ink').first.get_attribute('d') == ''
+        assert not finished(page.locator('.route').first)
+        page.locator('#practice').click()
+        assert page.locator('#exercise').get_attribute('data-demonstrating') == 'false'
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight')
         for button in page.locator('.teacher-controls button').all():
             bounds = button.bounding_box()

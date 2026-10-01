@@ -42,9 +42,9 @@
   }
 
   function createTracker(path, options) {
-    const state = { progress: 0, along: 0, connected: false, raw: null, done: false };
+    const state = { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false };
     function reset() {
-      Object.assign(state, { progress: 0, along: 0, connected: false, raw: null, done: false });
+      Object.assign(state, { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false });
     }
     function start(point) {
       reset();
@@ -54,7 +54,32 @@
       state.progress = state.along = projected.along;
       state.connected = true;
       state.raw = point;
-      return [{ point: projected.point, newSegment: true }, { point: projected.point, newSegment: false }];
+      state.lastAccepted = point;
+      return [{ point, newSegment: true }, { point, newSegment: false }];
+    }
+    function pause() {
+      state.raw = null;
+      state.connected = false;
+    }
+    function resumeCandidate(point) {
+      if (state.done || !state.lastAccepted || !options.contains(point)
+        || distance(point,state.lastAccepted) > options.startRadius) return null;
+      const projected = project(path,point,state.along);
+      const joinRadius = options.joinRadius || 0;
+      if (projected.distance > options.tolerance || projected.along > state.progress+joinRadius+0.001
+        || Math.abs(projected.along-state.along) > options.startRadius*1.6+joinRadius) return null;
+      return projected;
+    }
+    function canResume(point) { return resumeCandidate(point) !== null; }
+    function resume(point) {
+      const projected = resumeCandidate(point);
+      if (!projected) return null;
+      state.along = projected.along;
+      state.progress = Math.max(state.progress,projected.along);
+      state.connected = true;
+      state.raw = state.lastAccepted = point;
+      // A lift starts a new ink subpath: never draw a bridge through the air.
+      return [{ point, newSegment: true }, { point, newSegment: false }];
     }
     function move(point) {
       const marks = [];
@@ -84,7 +109,9 @@
         }
         state.along = projected.along;
         state.progress = Math.max(state.progress, projected.along);
-        marks.push({ point: projected.point, newSegment });
+        state.lastAccepted = sample;
+        // Validation follows the template; visible ink follows the real finger.
+        marks.push({ point: sample, newSegment });
         if (state.progress >= path.length-options.endRadius && distance(sample, path.points.at(-1)) <= options.endRadius) {
           state.done = true;
           break;
@@ -93,7 +120,7 @@
       state.raw = point;
       return marks;
     }
-    return { state, reset, start, move };
+    return { state, reset, start, pause, canResume, resume, move };
   }
 
   const api = { createPath, at, project, createTracker, distance };
