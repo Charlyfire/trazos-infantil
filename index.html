@@ -16,24 +16,24 @@
       </section>
 
       <section id="exercise" class="screen exercise" aria-label="Ejercicio de trazado" hidden>
-        <button id="home-button" class="home-button" type="button" aria-label="Volver al inicio">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 14 16 5l11 9v13H19v-9h-6v9H5Z" /></svg>
-        </button>
-        <svg id="board" role="img" aria-label="Sigue el camino desde el círculo hasta la estrella">
-          <path id="track-border" />
-          <path id="track" />
-          <path id="ink" />
-          <g id="destination">
-            <circle class="star-halo" r="68" />
-            <path class="star" d="M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" />
-          </g>
-          <g id="origin">
-            <circle id="start-disc" />
-            <path id="direction" d="M-17-12 0 5 17-12 M0 5V-24" />
-          </g>
-        </svg>
+        <nav class="teacher-controls" aria-label="Controles del profesor">
+          <button id="home-button" class="icon-button" type="button" aria-label="Volver al inicio" title="Volver al inicio">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 14 16 5l11 9v13H19v-9h-6v9H5Z" /></svg>
+          </button>
+          <div class="mode-controls" role="group" aria-label="Modo de trabajo">
+            <button id="demo" type="button" aria-pressed="true">DEMOSTRACIÓN</button>
+            <button id="practice" type="button" aria-pressed="false">PRÁCTICA</button>
+          </div>
+          <button id="clear" class="icon-button" type="button" aria-label="Repetir todas las líneas" title="Repetir">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 11a11 11 0 1 1-1 9 M7 4v8h8" /></svg>
+          </button>
+          <button id="advance" class="icon-button" type="button" aria-label="Siguiente ejercicio" title="Siguiente">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 16h22 M18 7l9 9-9 9" /></svg>
+          </button>
+        </nav>
+        <svg id="board" role="img" aria-label="Sigue el camino desde el círculo hasta la estrella"></svg>
         <div id="completed" class="completed" hidden>
-          <p class="sr-only" role="status">¡Has llegado a la estrella!</p>
+          <p id="announcement" class="sr-only" role="status"></p>
           <button id="repeat" class="button repeat-button" type="button">REPETIR</button>
           <button id="next" class="button next-button" type="button">SIGUIENTE</button>
         </div>
