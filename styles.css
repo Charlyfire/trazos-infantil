@@ -130,20 +130,11 @@ button:not(:disabled):active { box-shadow: inset 0 3px 6px #174b4c20; }
 .demo-ink { stroke: var(--deep-green); opacity: .85; }
 .guide { fill: #467e74; pointer-events: none; }
 .origin, .destination { pointer-events: none; }
-.start-glow { fill: #fffdf590; stroke: #ffffffcc; stroke-width: 3; }
-.start-disc { fill: var(--green); stroke: var(--paper); stroke-width: 8; }
-.direction { fill: none; stroke: white; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
-.origin[data-kind="rocket"] .start-disc { fill: var(--paper); stroke: var(--green); stroke-width: 5; }
-.origin[data-kind="rocket"] .direction { stroke: var(--green); stroke-width: 5; }
-.origin[data-kind="dot"] .start-disc { fill: var(--paper); stroke: var(--green); stroke-width: 5; stroke-dasharray: 6 8; }
+.start-disc { fill: var(--paper); stroke: var(--green); stroke-width: 5; stroke-dasharray: 6 8; }
+.direction { fill: none; stroke: var(--deep-green); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .origin[data-kind="dot"] .direction { display: none; }
 .start-art { animation: start-breathe 3.8s ease-in-out infinite; }
-.rocket { stroke: var(--deep-green); stroke-width: 2.5; stroke-linejoin: round; }
-.rocket-body { fill: white; }
-.rocket-fin, .rocket-nose { fill: var(--coral); }
-.rocket-flame { fill: var(--gold); stroke: #d99825; }
-.rocket-window { fill: #b6ebe9; stroke: var(--green); stroke-width: 3; }
-.rocket-shine { fill: none; stroke: white; stroke-width: 3; stroke-linecap: round; }
+.off-path .track-border { animation: boundary-flash .38s ease-in-out 2; }
 .star-halo { fill: var(--paper); stroke: #ffe4a4; stroke-width: 3; }
 .star { fill: var(--gold); stroke: #b57612; stroke-width: 4; stroke-linejoin: round; }
 .star-shine { fill: none; stroke: #fff8d5; stroke-width: 5; stroke-linecap: round; pointer-events: none; }
@@ -167,14 +158,17 @@ button:not(:disabled):active { box-shadow: inset 0 3px 6px #174b4c20; }
 .settings-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(680px, calc(100% - 24px)); padding: 28px; border: 3px solid var(--green); border-radius: 32px; background: var(--paper); box-shadow: 0 8px 40px #174b4c40; z-index: 3; display: grid; gap: 16px; }
 .settings-panel h2 { margin: 0; font-size: 24px; }
 .settings-panel p { margin: 0; font-size: 20px; font-weight: 700; }
-.height-controls, .help-controls { display: flex; align-items: center; gap: 12px; }
+.height-controls, .help-controls, .background-controls { display: flex; align-items: center; gap: 12px; }
 .settings-panel button { min-height: 68px; padding: 12px 18px; border-color: var(--border); border-radius: 22px; background: #e4efe6; color: var(--deep-green); box-shadow: var(--button-shadow); font-weight: 800; font-size: 18px; }
 .height-controls output { flex: 1; text-align: center; font-size: 18px; }
 .help-controls button { flex: 1; }
+.background-controls button { flex: 1; }
+.background-status { font-size: 14px; max-width: 140px; }
 .help-controls button[aria-pressed="true"], .settings-panel .settings-close { background: var(--green); border-color: var(--deep-green); color: white; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* Opacity changes retain the exact visible/touchable location of the start. */
+@keyframes boundary-flash { 0%, 100% { stroke: var(--green); } 30%, 70% { stroke: #d94139; } }
 @keyframes start-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .82; } }
 @keyframes celebrate { 0%, 100% { transform: scale(1); } 40% { transform: translateY(-7px) scale(1.13); } 70% { transform: scale(1.04); } }
 @keyframes glow { 40% { fill: #fff9dc; stroke: #edc456; stroke-width: 9; } }
@@ -228,4 +222,4 @@ button:not(:disabled):active { box-shadow: inset 0 3px 6px #174b4c20; }
   .height-controls output { font-size: 14px; }
 }
 @media (max-width: 400px) and (max-height: 450px) { .icon-button { width: 48px; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .off-path .track-border { stroke: #d94139; } }

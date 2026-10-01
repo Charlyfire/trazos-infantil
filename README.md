@@ -1,12 +1,10 @@
 # TRAZOS
 
-Aplicación táctil de grafomotricidad para niños de 3 años, pensada para una PDI y pantallas 16:9. HTML, CSS y JavaScript vanilla, sin frameworks, backend, fuentes remotas ni dependencias de ejecución.
+Aplicación táctil de grafomotricidad para niños de 3 años en una PDI. HTML, CSS y JavaScript vanilla, sin frameworks, backend ni dependencias de ejecución. Incluye 20 familias de ejercicios.
 
-Incluye 20 familias de ejercicios, basadas en las plantillas aportadas y en las ampliaciones solicitadas para el aula. Los dibujos se generan con SVG; no hace falta cargar el PDF para usar la aplicación.
+## Ejecutar y poner el fondo
 
-## Ejecutar
-
-Descarga el proyecto completo y abre `index.html` en un navegador moderno. Los archivos `tracing.js`, `templates.js`, `app.js` y `styles.css` deben estar junto a él. Funciona sin conexión. También puedes servir la carpeta:
+Descarga el proyecto completo y abre `index.html` en un navegador moderno. Funciona sin conexión. También puedes servir la carpeta:
 
 ```sh
 python3 -m http.server 8000
@@ -14,23 +12,43 @@ python3 -m http.server 8000
 
 Abre `http://localhost:8000`. En la PDI se recomienda la pantalla completa del navegador (F11 en equipos compatibles).
 
-## Diseño para PDI
+El fondo del proyecto debe llamarse **`fondo-trazos.png`** y estar junto a `index.html`. Se muestra con `background-size: cover`, centrado y sin deformarse. En otras proporciones de pantalla puede recortar los bordes. El paisaje permanece detrás del SVG y de todos los controles; no se añaden nubes, sol ni suelo mediante CSS.
 
-La pantalla de ejercicios utiliza `fondo-trazos.png`, situado junto a `index.html`, como fondo con `background-size: cover`, centrado y sin repetición. Conserva la proporción y puede recortar los bordes en otras relaciones de aspecto. El fondo permanece detrás del SVG y de los botones; no hay paisaje añadido mediante HTML o CSS. **El PNG aún no está disponible en la carpeta ni en el repositorio revisado:** hasta incorporarlo se muestra el color de fondo suave definido en CSS.
+También puedes abrir los ajustes del profesor y pulsar **CARGAR FONDO** para elegir el PNG original desde el ordenador de la PDI. Se admiten PNG, JPEG y WebP de hasta 8 MB. La imagen se valida antes de aplicarla y se guarda en el navegador de ese equipo, si hay espacio. Si el almacenamiento está bloqueado o lleno, se aplica durante la sesión y el panel lo indica. Cambiar el fondo conserva los dibujos actuales. No se envía la imagen a ningún servidor.
 
-El panel del profesor agrupa los controles en dos filas flexibles. Los botones activos se distinguen por su relleno turquesa, borde y texto blanco. El selector conserva el desplegable nativo y añade un icono SVG que cambia según la plantilla y una flecha visible. El catálogo actualizado contiene 20 familias y mantiene todos los controles de altura, ayuda, demostración y repetición.
+**Recurso pendiente en el repositorio:** las imágenes del paisaje llegaron visibles en el chat, pero no como un archivo accesible en el entorno. El PNG original aún debe añadirse a la carpeta, o seleccionarse mediante CARGAR FONDO. Sin él se muestra un color de fondo suave.
 
-Las verticales tienen un cohete SVG en el mismo punto de inicio, orientado hacia abajo o hacia arriba según el sentido elegido, con flecha de dirección. En práctica siguen apareciendo cinco figuras cuando hay ancho suficiente; en pantallas muy grandes se agrupan en una zona central de hasta 1.360 píxeles CSS. Los botones de repetición se alinean con esas columnas. El resto de plantillas conserva su distribución.
+## Uso en clase
 
-Los carriles tienen relleno crema claro y borde turquesa. Los inicios muestran una variación muy suave de opacidad, sin desplazar su zona táctil. La estrella dorada tiene un brillo breve al completar y conserva un halo con borde verde hasta reiniciar. Las animaciones respetan `prefers-reduced-motion`. Se conservan el grosor del carril y el radio de inicio. La tolerancia se adapta a las curvas y a la separación de los segmentos en castillos y zig-zag. El seguimiento permite muestras consecutivas que queden a ambos lados de un vértice agudo, solo junto a esa esquina; sigue rechazando saltos a zonas pendientes.
+Pulsa **EMPEZAR**. Se abre **DEMOSTRACIÓN**, con una figura grande. El selector permite elegir cualquiera de las 20 plantillas. **PRÁCTICA** muestra varias copias para que trabajen dos o tres niños simultáneamente, o un niño por turnos. Cada figura tiene un botón **REPETIR** que conserva el trabajo de sus compañeros. Con una sola figura terminada aparecen los botones grandes REPETIR y SIGUIENTE.
 
-El dibujo reserva espacio bajo la altura real del panel superior para evitar solapamientos en resoluciones pequeñas. En la PDI conviene revisar el alcance de los niños, la legibilidad de los botones desde lejos, el recorte del PNG y el contraste del carril sobre el paisaje.
+Los controles superiores mantienen inicio, demostración/práctica, repetición general, siguiente, reproducción de la demostración y ajustes. Los botones se usan con Pointer Events y teclado; no dependen de hover.
 
-## Demostración y práctica
+Por defecto los ejercicios están dentro del **70 % inferior** de la pantalla. En los ajustes, **BAJAR** y **SUBIR** cambian la zona hasta el 45 % inferior. Las verticales se agrupan en una zona central de hasta 1.360 píxeles CSS y sus botones de repetición se alinean debajo. En pantallas pequeñas se reducen las copias y se reserva espacio bajo la altura real del panel superior.
 
-Pulsa **EMPEZAR**. La aplicación abre **DEMOSTRACIÓN**, con una figura grande para el profesor. El selector superior permite elegir directamente cualquiera de las 20 plantillas. Pulsa **PRÁCTICA** para mostrar varias copias de la misma figura, una al lado de otra.
+Elige la altura y la dificultad antes de empezar: cambiar altura, dificultad, plantilla, modo o tamaño de pantalla reinicia los dibujos. Abrir los ajustes libera los contactos activos. **LISTO** o Escape cierra el panel. La altura y la dificultad se recuerdan en el dispositivo; las preferencias antiguas conservan la altura y comienzan en el nuevo modo fácil.
 
-En demostración, un punto naranja recorre despacio la figura una vez: muestra el inicio, la dirección y, en figuras compuestas, cada parte por orden. Cada recorrido dura entre 5 y 12 segundos. El botón con el triángulo permite volver a verla; mientras se reproduce muestra un cuadrado para detenerla. El punto **va pintando el recorrido** en una capa independiente, sin completar el ejercicio del niño. Al acabar queda el ejemplo pintado. La tinta del ejemplo se borra al reproducirlo de nuevo, tocar el dibujo, repetir o cambiar de modo. Está separada de la tinta real y nunca cuenta como trabajo del niño. En «Palos y puntos» muestra primero el palo y después marca el punto; esa segunda acción dura menos de un segundo. Tocar el dibujo detiene la demostración para que el profesor pueda trazar. También se detiene al cambiar de plantilla, pasar a práctica o salir de la ventana. Con la preferencia de movimiento reducido del sistema, esta animación queda desactivada.
+## Fácil y difícil
+
+La indicación de inicio es una **flecha pequeña y fija**: no sigue al dedo, no cambia de orientación y no se desplaza al levantarlo. El primer contacto de cada recorrido debe comenzar junto a esa flecha. Después se siguen los carriles hasta la estrella. La tinta visible corresponde a la posición real del dedo.
+
+**FÁCIL** es el modo inicial. Permite levantar el dedo y volver a dibujar dentro del mismo carril, incluso en otro tramo. Conserva las marcas anteriores y cada contacto crea una marca independiente: no dibuja una línea entre contactos. También permite salir y volver al carril sin borrar lo hecho. Al salir, el borde parpadea dos veces en rojo, sin sonido de error. Se completa cuando se ha cubierto el recorrido desde el inicio y se ha alcanzado la meta; tocar la estrella o dibujar un tramo posterior no rellena los huecos pendientes. Si se rellena el último hueco después de haber alcanzado la meta, la figura también puede completarse.
+
+**DIFÍCIL** exige seguir el recorrido en un gesto continuo por parte. Si el dedo sale del carril, se borra inmediatamente esa figura y el siguiente intento debe comenzar desde su inicio. En una X, por ejemplo, salir durante la segunda línea reinicia ambas líneas. Los dibujos y contactos de los compañeros se conservan. Levantar el dedo antes de terminar una parte exige empezar esa parte de nuevo; las partes anteriores se conservan mientras no se salga del carril.
+
+En ambos modos, **la tinta se recorta al carril con una máscara SVG**: ninguna porción del pincel se dibuja fuera del borde. Salir no añade tinta. Con movimiento reducido, el aviso rojo queda estático hasta volver al carril o reiniciar, evitando parpadeos.
+
+Se mantienen estrellas grandes, celebración breve y sonido positivo suave cuando Web Audio está disponible. No hay puntuaciones ni mensajes largos. La pantalla impide scroll, selección, arrastre de imágenes y zoom gestual dentro del ejercicio.
+
+La PDI debe transmitir contactos táctiles independientes para varios niños a la vez. Si emula un único ratón, se puede trabajar por turnos.
+
+## Demostración pintada
+
+El punto de demostración recorre lentamente la figura **y va pintando**, en una capa separada de la tinta del niño. Cada recorrido dura entre 5 y 12 segundos. En figuras compuestas muestra las partes por orden; el punto de Palos y puntos se marca en menos de un segundo. Al terminar queda visible el ejemplo pintado, sin completar el ejercicio ni dar crédito al niño.
+
+El botón de reproducción permite repetir o detener la animación. Tocar el dibujo borra la tinta del ejemplo y detiene la demostración para comenzar un intento real. Repetir, cambiar de plantilla o pasar a práctica también borra el ejemplo. Salir de la ventana detiene la animación. La preferencia `prefers-reduced-motion` desactiva la reproducción animada.
+
+## Plantillas
 
 | Plantilla | Gestos por figura | Copias máximas en práctica |
 | --- | --- | --- |
@@ -55,88 +73,57 @@ En demostración, un punto naranja recorre despacio la figura una vez: muestra e
 | Círculo y cruz | 3 | 3 |
 | Camino de puntos | 1 | 3 |
 
-Los círculos y óvalos empiezan arriba y avanzan hacia la izquierda. Las dos líneas de la X empiezan arriba y descienden. Cuadrados, triángulos y rectángulos se cierran con un único gesto; la estrella aparece al acercarse a completar la vuelta. Los castillos empiezan hacia la izquierda, suben y continúan derecha, abajo, derecha, arriba… Ondas alterna subidas y bajadas; Olas muestra arcos sucesivos sobre una misma base. Se han retirado Línea con óvalos, Línea entre puntos y Círculos dobles.
+Los círculos y óvalos empiezan **arriba hacia la izquierda**. Las dos líneas de la X descienden. Los contornos cerrados se recorren con un solo gesto por parte; tocar su punto inicial no completa la vuelta. La estrella aparece al acercarse a terminarla.
 
-Pueden trabajar dos o tres niños simultáneamente, o uno solo puede completar todas las figuras por turnos y en cualquier orden. Cada columna da a un niño su propio espacio. La cantidad de copias se reduce automáticamente en pantallas pequeñas; «Círculo y cruz» necesita una columna más ancha porque incluye dos símbolos juntos, y «Castillos» necesita espacio para separar sus segmentos.
+**Castillos**, según la última plantilla adjunta, empieza **a la derecha**, luego sube, avanza a la derecha, baja y repite derecha, arriba, derecha, abajo; termina con un tramo horizontal hacia la derecha. Las almenas conservan una proporción horizontal y dejan espacio entre carriles. En práctica se limita la cantidad de repeticiones para que se distingan las esquinas y se puedan trazar con el dedo.
 
-**Por defecto, todos los dibujos, incluidos sus círculos de inicio y estrellas, están dentro del 70 % inferior de la pantalla.** El 30 % superior contiene los controles del profesor. El botón de ajustes junto al selector abre **AJUSTES DEL PROFESOR**: **BAJAR** y **SUBIR** cambian la altura en pasos pequeños, desde el 70 % hasta el 45 % inferior. Bajar reduce la zona y acerca los puntos de inicio al suelo. La zona inferior reserva además espacio para los botones de repetición. En pantallas muy bajas se deja un pequeño margen adicional para el selector.
+Ondas alterna subidas y bajadas; Olas muestra arcos sobre una misma base. En Camino de puntos las marcas guían un camino continuo. En Palos y puntos, primero se hace el palo; después aparece una zona vacía de contorno discontinuo para marcar el punto con **un contacto nuevo**. La estrella queda separada para que el punto pintado permanezca visible. No hay un punto ya dibujado.
 
-En esos ajustes también se elige **GESTO CONTINUO** o **CON AYUDA**. Pulsa **LISTO** para volver al ejercicio; también puedes cerrar con Escape. Abrir los ajustes libera los contactos activos. Cambiar la altura reinicia los dibujos: conviene ajustarla antes de empezar. La altura y el modo de ayuda se recuerdan en el mismo dispositivo con `localStorage`, si el navegador lo permite. No se guardan los dibujos de los niños.
+## Archivos y nuevos ejercicios
 
-Los controles superiores permiten volver al inicio, elegir demostración/práctica, seleccionar una plantilla, repetir todas las figuras (flecha circular) y pasar a la siguiente (flecha a la derecha). El profesor puede cambiar de plantilla aunque haya figuras pendientes. Cambiar de modo, plantilla o tamaño de pantalla reinicia los dibujos y libera los contactos activos.
-
-## Trazar
-
-Empieza en el círculo verde, sigue la flecha y dibuja hasta la estrella. Por defecto se utiliza un único gesto continuo. Funciona con dedo, lápiz y botón principal del ratón mediante Pointer Events.
-
-La marca verde muestra **el recorrido real del dedo**, incluidas sus pequeñas desviaciones dentro de la tolerancia; no se centra sobre la guía. Su grosor permite ver la guía ancha debajo. Los movimientos fuera de la zona permitida no pintan ni hacen avanzar el ejercicio.
-
-Las figuras compuestas se hacen **por partes**: una cruz requiere sus dos líneas; «Palos y puntos» requiere el palo y un toque independiente; «Círculo y cruz» requiere una vuelta y las dos líneas. Solo la parte actual muestra su punto de inicio. Al terminar aparece el inicio de la siguiente parte. Si se interrumpe esa parte, se conserva lo ya completado.
-
-En un círculo, el punto de inicio y el destino coinciden. Primero se ve el círculo verde con su flecha; cuando el niño ha recorrido la mayor parte de la vuelta, aparece la estrella en ese lugar. Tocar el punto de inicio, quedarse quieto o atravesar el diámetro no completa la vuelta. Si levanta el dedo antes de terminar, en gesto continuo vuelve a mostrarse el inicio para repetir esa parte; con ayuda aparece el punto de continuación.
-
-En «Camino de puntos», las marcas guían un camino continuo. En **«Palos y puntos»**, el punto no está dibujado: primero se hace el palo y después aparece un círculo de contorno discontinuo para indicar dónde tocar. El toque crea una marca en la posición real del dedo y completa la figura. La estrella aparece debajo para que el punto siga visible. Deslizar el mismo dedo desde el palo no lo marca; hace falta un contacto nuevo.
-
-Salir del camino detiene el avance sin mensajes ni sonidos de error. Para continuar sin levantar el dedo, vuelve al último tramo alcanzado o a una parte anterior del recorrido. Entrar más adelante no rellena lo pendiente. El seguimiento comprueba también el movimiento entre eventos para evitar atajos entre curvas o a través de un círculo.
-
-En **GESTO CONTINUO**, levantar el dedo o cancelar el contacto termina ese gesto. El siguiente intento debe comenzar de nuevo en su círculo. Solo se reinicia esa parte, manteniendo las partes anteriores y lo que hayan hecho los demás niños.
-
-En **CON AYUDA**, el niño puede levantar el dedo y continuar cerca del último punto válido, señalado con el círculo verde. El siguiente contacto conserva lo dibujado y empieza una nueva marca: no se dibuja una línea entre contactos ni se rellenan zonas pendientes. Tampoco se puede comenzar una figura nueva por la mitad. Un segundo dedo en una figura ocupada se ignora en ambos modos.
-
-Cada llegada celebra de forma independiente, con una animación breve y un sonido suave si el navegador permite Web Audio. Las celebraciones simultáneas mantienen el volumen suave.
-
-En práctica hay un botón **REPETIR** debajo de cada figura. Borra solo esa figura, incluso si otro niño está trazando simultáneamente. Se puede usar antes o después de terminar y permanece disponible al completar todas las figuras. El profesor pasa de plantilla con la flecha superior. Cuando hay una sola figura, al completarla aparecen los botones grandes **REPETIR** y **SIGUIENTE**. Después de la última plantilla, **SIGUIENTE** vuelve a la primera.
-
-El área de trabajo impide scroll, selección y gestos de zoom táctil. La animación respeta la preferencia de movimiento reducido del sistema.
-
-La participación simultánea requiere una PDI que transmita varios contactos independientes. Si el equipo emula un único ratón, los niños pueden practicar por turnos con las mismas figuras.
-
-## Organización y nuevas plantillas
-
-- `index.html`: pantallas y controles.
-- `styles.css`: colores, tamaños y animaciones.
-- `app.js`: disposición inferior, interacción, figuras por partes, sonido y navegación.
-- `templates.js`: catálogo y construcción de los dibujos.
-- `tracing.js`: geometría y seguimiento de segmentos rectos, curvas y círculos.
+- `index.html`: pantallas y controles del profesor.
+- `styles.css`: paleta, botones, fondo, avisos y animaciones.
+- `app.js`: disposición, eventos, máscaras SVG, demostración, sonido, fondo local y navegación.
+- `templates.js`: catálogo y geometría de los ejercicios.
+- `tracing.js`: seguimiento continuo, cobertura del modo fácil y puntos por contacto.
 - `tests/`: comprobaciones de lógica y prueba opcional de navegador.
 
-Para añadir una plantilla, añade una entrada al `catalog` de `templates.js` y un caso en `build()` que devuelva una lista de trazos. Cada trazo contiene `points` (coordenadas del camino, ordenadas según el sentido), `scale`, `closed` y `guides` (marcas decorativas). Un punto dibujable utiliza `kind: "dot"` y una sola coordenada; se trata como un toque independiente. El orden de la lista determina el orden de las partes. Las curvas se representan con puntos próximos entre sí y los círculos terminan en el mismo punto donde empiezan.
+Para añadir una plantilla, crea una entrada en `catalog` de `templates.js` y un caso en `build()`. Devuelve una lista de trazos con `points` (coordenadas ordenadas según el sentido), `scale`, `closed` y `guides` (marcas decorativas). El orden de la lista determina el orden de las partes. Las curvas utilizan puntos cercanos entre sí y los contornos cerrados terminan donde empiezan. Un punto dibujable utiliza `kind: "dot"` y una sola coordenada.
 
-`copies` controla el máximo de figuras en práctica; `minWidth`, cuando se indica, define el ancho mínimo de cada columna para esa plantilla. Demostración muestra siempre una figura.
+`copies` limita las figuras en práctica; `minWidth` define, cuando es necesario, el ancho mínimo de cada columna. Demostración muestra una figura. Los iconos del selector se definen en `TEMPLATE_ICONS` de `app.js`.
 
-## Altura, grosor y tolerancia
+## Grosor, tolerancia y altura
 
-Al principio de `app.js`, el objeto `SETTINGS` controla:
+El objeto `SETTINGS`, al principio de `app.js`, controla:
 
-- `lowerAreaRatio`: fracción inferior inicial disponible para los niños (`0.7`). Los ajustes del profesor o una preferencia guardada sustituyen este valor al usar la aplicación.
-- `minColumnWidth`: ancho mínimo general de cada columna (220 píxeles CSS).
-- `pathWidth`: anchura visible máxima del camino (100).
-- `inkWidth`: anchura máxima de la marca verde (36).
-- `tolerance`: distancia máxima desde el centro del camino a cada lado (80).
-- `startRadius`: radio máximo del círculo de inicio (54).
-- `endRadius`: radio máximo de llegada a la estrella (50).
-- `sampleStep`: separación máxima entre las comprobaciones del movimiento (6).
-- `demoSpeed`: velocidad orientativa del punto de demostración (95 píxeles por segundo, ajustados a la escala).
-- `demoMinDuration` y `demoMaxDuration`: duración mínima y máxima de cada parte de la demostración (5.000 y 12.000 milisegundos).
+- `pathWidth`: grosor máximo visible del carril (100 píxeles CSS).
+- `inkWidth`: grosor máximo del pincel (36).
+- `tolerance`: límite superior configurable (80); se limita además a la mitad del ancho real del carril, para que el centro del dedo no pinte fuera. Algunas curvas limitan más esa distancia.
+- `startRadius`: radio de aceptación alrededor del inicio (54).
+- `endRadius`: tolerancia de llegada a la meta (50).
+- `sampleStep`: separación máxima entre comprobaciones del movimiento (6).
+- `lowerAreaRatio`: fracción inferior inicial (0,7), sustituida por el ajuste del profesor.
+- `minColumnWidth`: ancho mínimo general de cada figura (220).
+- `demoSpeed`, `demoMinDuration`, `demoMaxDuration`: velocidad y duración de la demostración.
 
-Las medidas se escalan para conservar la legibilidad de ondas, círculos pequeños y anillos concéntricos. `templates.js` limita adicionalmente la tolerancia de las ondas según su altura para impedir que un movimiento recto complete sus curvas. La tolerancia siempre se limita a la columna propia del niño. Los colores y los tamaños de los botones se ajustan en `styles.css`.
+Las medidas se escalan con la figura. Las máscaras SVG utilizan el mismo ancho del carril y el espacio propio del niño. El seguimiento difícil admite muestras cercanas a ambos lados de una misma esquina aguda, sin permitir saltos a otros segmentos. El seguimiento fácil registra intervalos cubiertos por tinta; conserva los huecos entre contactos separados.
 
 ## Comprobaciones
 
-Prueba de lógica, sin instalar dependencias:
+Sin instalar dependencias:
 
 ```sh
 node tests/check-logic.cjs
 ```
 
-La suite ejecuta el código de producción en un DOM simulado y comprueba las 20 familias, ambos modos, ratón/tacto/lápiz, varios tamaños, posición inferior, inicio obligatorio, reinicio, cancelación, tres contactos simultáneos y figuras de varias partes. Comprueba que los círculos no se completen al tocar el inicio o atravesar su diámetro, que una línea recta no complete una onda y que interrumpir un niño no afecte a los demás. También verifica la marca real, continuación con ayuda sin saltos, repetición individual con otro contacto activo, altura ajustable y persistente, almacenamiento bloqueado y demostración lenta con tinta independiente y sin crédito de ejercicio. Añade comprobaciones de sentidos, punto creado por el niño, esquinas agudas y rechazo de atajos en las nuevas figuras.
+La suite ejecuta el código real en un DOM simulado. Comprueba las 20 familias, fácil/difícil, demostración/práctica, varios tamaños, ratón/tacto/lápiz, inicio obligatorio, cobertura sin huecos, flecha fija, aviso de salida, reinicio difícil, tres contactos independientes, repetición individual, máscaras de tinta y carga/persistencia del fondo.
 
-**Estado:** 13.025 comprobaciones de lógica pasan. Las vistas estáticas revisadas en la ampliación anterior no son capturas de navegador ni validan los nuevos controles.
+**Estado:** 25.413 comprobaciones de lógica pasan. Se ha comprobado también con un renderizado SVG que la tinta es transparente fuera del carril. Las revisiones estáticas de SVG no son capturas de navegador.
 
-La prueba de navegador de `tests/check-browser.py` utiliza Playwright y Chromium como herramientas opcionales de desarrollo, independientes de la aplicación:
+La comprobación opcional de navegador utiliza Playwright y Chromium como herramientas de desarrollo:
 
 ```sh
 python3 tests/check-browser.py
 ```
 
-Incluye las 20 familias con ratón y eventos táctiles nativos simulados, hasta tres figuras a la vez, sus partes secuenciales, ambos modos, posición inferior y ausencia de scroll. Añade las cinco mejoras, incluida la repetición con un segundo contacto mientras otro niño continúa. **Sigue pendiente ejecutarla:** el entorno de desarrollo impide iniciar Chromium por una restricción de sockets (`Operation not permitted`). La versión anterior fue probada por el usuario; esta ampliación necesita confirmar el comportamiento en navegador y en la PDI concreta.
+**Pendiente de ejecución real:** Chromium no puede iniciarse en este entorno por una restricción de sockets (`Operation not permitted`). En la PDI conviene revisar los dos niveles, la continuidad después de levantar el dedo, el recorte de tinta, los dos parpadeos, la visibilidad de las flechas, el guardado del fondo y los contactos de varios niños.

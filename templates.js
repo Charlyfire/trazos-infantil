@@ -92,8 +92,9 @@
       case "wave": return [wave(0.2,2)];
       case "surf-wave": return [wave(0.35,3,true)];
       case "castle": {
-        const points = [[0.12,0.75],[0,0.75],[0,0.25],[0.2,0.25],[0.2,0.75],[0.4,0.75],[0.4,0.25],[0.6,0.25],[0.6,0.75],[0.8,0.75],[0.8,0.25],[1,0.25],[1,0.75]].map(([x,y])=>point(x,y));
-        const scale = Math.min(baseScale,bounds.w/700,bounds.h/260);
+        const height = Math.min(bounds.h*0.5,bounds.w*0.16);
+        const points = [[0,0.75],[0.08,0.75],[0.08,0.25],[0.24,0.25],[0.24,0.75],[0.4,0.75],[0.4,0.25],[0.56,0.25],[0.56,0.75],[0.72,0.75],[0.72,0.25],[0.88,0.25],[0.88,0.75],[1,0.75]].map(([x,y])=>({x:point(x,0.5).x,y:center.y+(y-0.5)*height*2}));
+        const scale = Math.min(baseScale,bounds.w/850,height/150);
         return [{ ...path(points,scale), tolerance: Math.min(80*scale,bounds.w*0.08,bounds.h*0.2) }];
       }
       case "zigzag": {

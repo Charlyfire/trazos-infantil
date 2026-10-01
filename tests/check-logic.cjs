@@ -26,7 +26,7 @@ function setup(width=1280,height=720,options={}) {
       appendChild(child){this.children.push(child);return child;},replaceChildren(){this.children=[];},
       getBoundingClientRect:()=>({left:0,top:0,...viewport}),
       hasPointerCapture:id=>captures.has(id),setPointerCapture:id=>captures.add(id),
-      releasePointerCapture(id){captures.delete(id);this.dispatch('lostpointercapture',{pointerId:id});},focus(){},
+      releasePointerCapture(id){captures.delete(id);this.dispatch('lostpointercapture',{pointerId:id});},focus(){},click(){this.dispatch('click',{detail:0});},
     };
   }
   const el=id=>{if(!ids.has(id)){const item=node();item.hidden=['exercise','completed','settings-panel'].includes(id);ids.set(id,item);}return ids.get(id);};
@@ -34,10 +34,14 @@ function setup(width=1280,height=720,options={}) {
   const frames=new Map();let nextFrame=1;
   const window=el('window');
   window.matchMedia=()=>({matches:options.reducedMotion||false});
-  const storage=new Map(options.saved? [['trazos.preferences.v1',JSON.stringify(options.saved)]]:[]);
+  const storage=new Map(options.saved? [['trazos.preferences.v2',JSON.stringify(options.saved)]]:[]);
+  if(options.background)storage.set('trazos.background.v1',options.background);
+  if(options.legacy)storage.set('trazos.preferences.v1',JSON.stringify(options.legacy));
   window.localStorage=options.storageDenied ? {getItem(){throw new Error('Storage unavailable');},setItem(){throw new Error('Storage unavailable');}}
     : {getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
-  const context=vm.createContext({document,window,requestAnimationFrame:fn=>{const id=nextFrame++;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id)});
+  class FileReader {readAsDataURL(file){this.result=file.data;this.onload?.();}}
+  class Image {set src(value){if(options.imageFails)this.onerror?.();else this.onload?.();}}
+  const context=vm.createContext({document,window,FileReader,Image,requestAnimationFrame:fn=>{const id=nextFrame++;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id)});
   el.frame=timestamp=>{const pending=[...frames.values()];frames.clear();pending.forEach(fn=>fn(timestamp));};
   el.pendingFrames=()=>frames.size;el.storage=storage;
   sources.forEach(source=>vm.runInContext(source,context));
@@ -69,8 +73,8 @@ function gesture(el,stroke,type='mouse',start=0,end=1,id=1) {
 
 if (!process.argv.includes('--features-only')) {
 for(const dimensions of [[1280,720],[1920,1080],[375,667],[844,390],[320,320]]) {
-  for(const mode of ['demo','practice'])for(const type of ['mouse','touch','pen']) {
-    const el=setup(...dimensions);el(mode).dispatch('click');
+  for(const difficulty of ['easy','hard'])for(const mode of ['demo','practice'])for(const type of ['mouse','touch','pen']) {
+    const el=setup(...dimensions,{saved:{difficulty}});el(mode).dispatch('click');
     check(el('template').children.length===T.catalog.length,'Every catalog family is available');
     for(let index=0;index<T.catalog.length;index++) {
       select(el,index);const current=groups(el),template=T.catalog[index];
@@ -106,11 +110,12 @@ for(const type of ['mouse','touch','pen']) {
   send(el,'pointerdown',point(0),1,type);send(el,'pointermove',point(0.3),1,type);
   send(el,'pointermove',point(0.4,130),1,type);const before=ink(stroke);
   send(el,'pointermove',point(0.8,130),1,type);send(el,'pointermove',point(0.8),1,type);send(el,'pointermove',point(1),1,type);
-  check(ink(stroke)===before&&!done(stroke),'Off-path movement cannot bridge an untraced gap');
+  check(ink(stroke).startsWith(before)&&!done(stroke),'Easy can paint later sections without completing the untraced gap');
   send(el,'pointermove',point(0.28),1,type);for(let i=29;i<=100;i++)send(el,'pointermove',point(i/100),1,type);
   check(done(stroke),'Can reconnect behind the frontier');
   el('clear').dispatch('click');gesture(el,stroke,type,0,0.4);gesture(el,stroke,type,0.4,1);
-  check(!done(stroke),'Lifting forces a new start');
+  check(done(stroke),'Easy continues after lifting');
+  el('clear').dispatch('click');
   send(el,'pointerdown',point(0),1,type);send(el,'pointermove',point(0.3),1,type);send(el,'pointercancel',point(0.3),1,type);send(el,'pointermove',point(1),1,type);
   check(!done(stroke),'Cancelled contact cannot finish');
 }
@@ -128,7 +133,7 @@ for(const id of ['circle','oval','square','triangle','rectangle','circle-plus'])
   gesture(el,stroke,'mouse',0,0.8);
   check(!done(stroke)&&child(stroke,'origin').getAttribute('data-visible')==='true','A lifted incomplete circle restores its visible start');
   gesture(el,stroke);check(done(stroke),'A full lap completes the circle');
-  if(strokes(group).length>1){check(!done(group),'Circle component alone cannot complete a multi-part figure');const second=strokes(group)[1];gesture(el,second,'mouse',0,0.35);gesture(el,second,'mouse',0.35,1);check(!done(second)&&done(stroke),'Restarting a later component retains completed earlier strokes');}
+  if(strokes(group).length>1){check(!done(group),'Circle component alone cannot complete a multi-part figure');const second=strokes(group)[1];gesture(el,second,'mouse',0,0.35);gesture(el,second,'mouse',0.35,1);check(done(second)&&done(stroke),'Continuing a later component retains completed earlier strokes');}
 }
 
 // Curves require a traced curve, not a straight jump from endpoint to endpoint.
@@ -186,16 +191,17 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
   const el=setup(1920,1080);helpOn(el);select(el,index);
   const group=groups(el)[0];
   for(const stroke of strokes(group)) {
+    const fixedOrigin=child(stroke,'origin').getAttribute('transform'),fixedDirection=child(stroke,'origin').children.find(n=>n.getAttribute('class')==='direction').getAttribute('transform');
     if(stroke.getAttribute('data-kind')==='dot'){gesture(el,stroke,type,0.5);check(!done(stroke)&&ink(stroke)==='','Dot needs its own valid contact even with help');gesture(el,stroke,type);check(done(stroke),'A point is painted by a valid tap');continue;}
     gesture(el,stroke,type,0.5);
     check(!done(stroke)&&ink(stroke)==='','Help still requires the initial start');
     gesture(el,stroke,type,0,0.35);
     const before=ink(stroke),m=model(stroke);
-    check(child(stroke,'origin').getAttribute('data-resume')==='true','Help shows a continuation marker after lifting');
+    check(child(stroke,'origin').getAttribute('transform')===fixedOrigin&&child(child(stroke,'origin'),'direction').getAttribute('transform')===fixedDirection,'The start arrow stays fixed after lifting');
     send(el,'pointerdown',G.at(m,m.length*0.85),1,type);
     send(el,'pointermove',m.points.at(-1),1,type);
     send(el,'pointerup',m.points.at(-1),1,type);
-    check(ink(stroke)===before&&!done(stroke),'Help cannot resume ahead or skip a gap');
+    check(ink(stroke).startsWith(before)&&!done(stroke),'Easy can resume ahead but cannot complete unpainted gaps');
     gesture(el,stroke,type,0.35,1);
     check(done(stroke)&&ink(stroke).startsWith(before),`Help preserves and completes ${T.catalog[index].id}/${type}`);
     check((ink(stroke).match(/M/g)||[]).length>=2,'Separate contacts create separate ink subpaths');
@@ -213,8 +219,8 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
  const y1=model(strokes(groups(el)[0])[0]).points[0].y;
  check(y1>y0,'Lowering the work area moves paths down');
  el('help').dispatch('click');el('settings-close').dispatch('click');
- const saved=JSON.parse(el.storage.get('trazos.preferences.v1'));
- check(saved.heightRatio===0.6&&saved.assisted===true,'Height and help are saved on the device');
+ const saved=JSON.parse(el.storage.get('trazos.preferences.v2'));
+ check(saved.heightRatio===0.6&&saved.difficulty==='easy','Height and difficulty are saved on the device');
  const restored=setup(1920,1080,{saved});restored('practice').dispatch('click');
  check(Math.abs(model(strokes(groups(restored)[0])[0]).points[0].y-y1)<0.001,'Device height is restored');
  check(restored('help').getAttribute('aria-pressed')==='true','Device help mode is restored');
@@ -299,13 +305,13 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
    check(p[1].x<p[0].x,`${id} first moves towards the left`);
  }
  const castle=build('castle')[0].points;
- for(const [index,axis,sign] of [[0,'x',-1],[1,'y',-1],[2,'x',1],[3,'y',1],[4,'x',1]])check((castle[index+1][axis]-castle[index][axis])*sign>0,`Castle direction ${index+1}`);
+ for(const [index,axis,sign] of [[0,'x',1],[1,'y',-1],[2,'x',1],[3,'y',1],[4,'x',1]])check((castle[index+1][axis]-castle[index][axis])*sign>0,`Castle direction ${index+1}`);
  for(const id of ['square','oval','triangle','rectangle']) {
    const s=build(id)[0];check(s.closed&&G.distance(s.points[0],s.points.at(-1))<0.001,`${id} is a complete closed contour`);
  }
  const el=setup();select(el,T.catalog.findIndex(t=>t.id==='vertical-up'));
  const origin=child(strokes(groups(el)[0])[0],'origin');
- check(child(child(origin,'start-art'),'rocket').getAttribute('transform')==='rotate(-180)','Ascending rocket points upwards');
+ check(child(origin,'direction').getAttribute('transform')==='rotate(-180)','Ascending start arrow points upwards');
 }
 
 // A dot is created by a separate real contact, never by finishing its neighbour.
@@ -351,5 +357,76 @@ for(const id of ['triangle','castle','zigzag','surf-wave']) {
  check(!done(stroke),`${id}: crossing the interior cannot complete the path`);
  gesture(el,stroke);
  check(done(stroke),`${id}: following the corners completes the path`);
+}
+// Easy/hard behavior, stationary hints, and independent failure handling.
+for(const type of ['mouse','touch','pen']) {
+ const easy=setup(1920,1080);easy('practice').dispatch('click');
+ check(easy('help').getAttribute('aria-pressed')==='true','Easy is the default difficulty');
+ const group=groups(easy)[0],stroke=strokes(group)[0],m=model(stroke),origin=child(stroke,'origin'),direction=child(origin,'direction');
+ const position=origin.getAttribute('transform'),angle=direction.getAttribute('transform');
+ gesture(easy,stroke,type,0,0.25);
+ const prefix=ink(stroke);
+ gesture(easy,stroke,type,0.7,1);
+ check(ink(stroke).startsWith(prefix)&&!done(stroke),'Easy permits a later contact while preserving the unpainted gap');
+ check(origin.getAttribute('transform')===position&&direction.getAttribute('transform')===angle,'The hint never follows the finger or continuation point');
+ gesture(easy,stroke,type,0.25,0.75);gesture(easy,stroke,type,0.9,1);
+ check(done(stroke),'Filling the missing region and reaching the goal completes Easy');
+ easy('clear').dispatch('click');
+ send(easy,'pointerdown',m.points[0],1,type);send(easy,'pointermove',G.at(m,m.length*0.2),1,type);
+ const before=ink(stroke);
+ send(easy,'pointermove',{x:m.points[0].x+200,y:G.at(m,m.length*0.2).y},1,type);
+ check(stroke.classList.contains('off-path'),'Easy highlights the border on exit');
+ const outsideInk=ink(stroke);send(easy,'pointermove',{x:m.points[0].x+210,y:G.at(m,m.length*0.4).y},1,type);
+ check(ink(stroke)===outsideInk&&ink(stroke).startsWith(before),'Moving outside adds no ink and keeps the previous drawing');
+ stroke.dispatch('animationend',{animationName:'boundary-flash'});
+ check(!stroke.classList.contains('off-path'),'The red border clears after its brief animation');
+ send(easy,'pointercancel',m.points[0],1,type);
+ const hard=setup(1920,1080,{saved:{difficulty:'hard'}});hard('practice').dispatch('click');
+ const figures=groups(hard),a=strokes(figures[0])[0],b=strokes(figures[1])[0],pa=model(a),pb=model(b);
+ send(hard,'pointerdown',pa.points[0],1,type);send(hard,'pointermove',G.at(pa,pa.length*0.2),1,type);
+ send(hard,'pointerdown',pb.points[0],2,'touch');send(hard,'pointermove',G.at(pb,pb.length*0.2),2,'touch');
+ const neighbour=ink(b);
+ send(hard,'pointermove',{x:pa.points[0].x+200,y:G.at(pa,pa.length*0.25).y},1,type);
+ check(ink(a)===''&&!done(a)&&!hard('board').hasPointerCapture(1),'Hard immediately resets the figure when leaving the corridor');
+ check(ink(b)===neighbour&&hard('board').hasPointerCapture(2),'Hard failure preserves the other child ink and contact');
+ gesture(hard,a,type,0.5,1);
+ check(ink(a)===''&&!done(a),'After a Hard failure the next contact must start at the original hint');
+ gesture(hard,a,type);
+ check(done(a),'Hard can be completed by tracing from the beginning');
+}
+
+// Losing a later Hard component resets the full figure, not its neighbours.
+{
+ const el=setup(1920,1080,{saved:{difficulty:'hard'}});el('practice').dispatch('click');select(el,T.catalog.findIndex(t=>t.id==='cross'));
+ const group=groups(el)[0],[a,b]=strokes(group);
+ gesture(el,a);const p=model(b).points[0];send(el,'pointerdown',p);send(el,'pointermove',{x:p.x+200,y:p.y});
+ check(strokes(group).every(s=>!done(s)&&ink(s)===''),'Hard restarts both lines of an unfinished X after an exit');
+}
+
+// Rendering masks confine the entire brush, not just the pointer centre.
+{
+ const el=setup(1920,1080);el('practice').dispatch('click');const ids=new Set();
+ for(const group of groups(el))for(const stroke of strokes(group)) {
+   const mask=stroke.children.find(n=>n.tag==='mask'),id=mask.getAttribute('id');
+   check(!ids.has(id)&&child(stroke,'ink').getAttribute('mask')===`url(#${id})`&&child(stroke,'demo-ink').getAttribute('mask')===`url(#${id})`,'Each figure clips both ink layers to its own SVG mask');ids.add(id);
+ }
+}
+
+// Real background loading is local, persistent, and optional when storage fails.
+{
+ const data='data:image/png;base64,AQ==',el=setup();
+ const previous=child(strokes(groups(el)[0])[0],'track').getAttribute('d');
+ el('background-file').files=[{type:'image/png',size:40,data}];el('background-file').dispatch('change');
+ check(el('exercise').style.backgroundImage===`url("${data}")`&&el.storage.get('trazos.background.v1')===data,'A selected PNG becomes the background and is saved locally');
+ check(child(strokes(groups(el)[0])[0],'track').getAttribute('d')===previous,'Applying a background does not reset or move the exercise');
+ const restored=setup(1920,1080,{background:data});check(restored('exercise').style.backgroundImage===`url("${data}")`,'The saved background is restored');
+ const denied=setup(1920,1080,{storageDenied:true});denied('background-file').files=[{type:'image/png',size:40,data}];denied('background-file').dispatch('change');
+ check(denied('exercise').style.backgroundImage===`url("${data}")`&&denied('background-status').textContent==='Fondo para esta sesión','A background still works when storage is denied');
+ const invalid=setup(1920,1080,{imageFails:true});invalid('background-file').files=[{type:'image/png',size:40,data}];invalid('background-file').dispatch('change');
+ check(!invalid('exercise').style.backgroundImage,'An undecodable image cannot replace the background');
+ el('background-file').files=[{type:'text/plain',size:40,data}];el('background-file').dispatch('change');
+ check(el('exercise').style.backgroundImage===`url("${data}")`,'Non-image files preserve the current background');
+ const legacy=setup(1920,1080,{legacy:{heightRatio:0.6,assisted:false}});
+ check(legacy('help').getAttribute('aria-pressed')==='true','Old continuous-gesture preferences migrate to the new Easy default');
 }
 console.log(`${checks} checks passed: ${T.catalog.length} families, five classroom improvements and three simultaneous contacts (simulated DOM).`);

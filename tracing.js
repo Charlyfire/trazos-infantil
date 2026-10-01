@@ -42,9 +42,9 @@
   }
 
   function createTracker(path, options) {
-    const state = { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false };
+    const state = { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false, outside:false, exited:false };
     function reset() {
-      Object.assign(state, { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false });
+      Object.assign(state, { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false, outside:false, exited:false });
     }
     function start(point) {
       reset();
@@ -93,6 +93,7 @@
     }
     function move(point) {
       const marks = [];
+      state.outside = state.exited = false;
       if (!state.raw || state.done) return marks;
       const origin = state.raw;
       const travel = distance(origin, point);
@@ -107,7 +108,8 @@
         const projected = project(path, sample, state.along);
         if (!options.contains(sample) || projected.distance > options.tolerance) {
           state.connected = false;
-          continue;
+          state.outside = state.exited = true;
+          break;
         }
         let newSegment = false;
         // Arc travel must fit the actual finger movement. This rejects jumps
@@ -135,8 +137,83 @@
     return { state, reset, start, pause, canResume, resume, move };
   }
 
+  function createEasyTracker(path, options) {
+    const state = { progress:0,along:0,connected:false,raw:null,lastAccepted:null,done:false,outside:false,exited:false };
+    let intervals = [], offPath = false, endReached = false;
+    function reset() {
+      Object.assign(state,{progress:0,along:0,connected:false,raw:null,lastAccepted:null,done:false,outside:false,exited:false});
+      intervals = []; offPath = false; endReached = false;
+    }
+    function candidate(point, initial = false) {
+      if (!options.contains(point)) return null;
+      const p = project(path,point,state.along,0,initial ? Math.min(options.startRadius,path.length) : path.length);
+      return p.distance <= options.tolerance ? p : null;
+    }
+    function cover(along) {
+      const radius = options.joinRadius;
+      intervals.push([Math.max(0,along-radius),Math.min(path.length,along+radius)]);
+      intervals.sort((a,b)=>a[0]-b[0]);
+      const merged = [];
+      for (const interval of intervals) {
+        const last = merged.at(-1);
+        if (last && interval[0] <= last[1]+0.001) last[1] = Math.max(last[1],interval[1]);
+        else merged.push(interval);
+      }
+      intervals = merged;
+      // Only the connected painted region from the start can complete a path.
+      // Drawing later sections never fills the holes between separate contacts.
+      state.progress = intervals[0][0] <= options.startRadius ? intervals[0][1] : 0;
+    }
+    function accept(point, projected, newSegment) {
+      state.along = projected.along;
+      state.lastAccepted = point;
+      state.connected = true; offPath = false;
+      cover(projected.along);
+      if (projected.along >= path.length-options.endRadius && distance(point,path.points.at(-1)) <= options.endRadius) endReached = true;
+      state.done = state.progress >= path.length-options.endRadius && endReached;
+      return {point,newSegment};
+    }
+    function start(point) {
+      reset();
+      const p = candidate(point,true);
+      if (!p) return [];
+      state.raw = point;
+      const mark = accept(point,p,true);
+      return [mark,{point,newSegment:false}];
+    }
+    function pause() { state.raw = null; state.connected = false; }
+    function canResume(point) { return !state.done && state.lastAccepted !== null && candidate(point) !== null; }
+    function resume(point) {
+      if (!canResume(point)) return null;
+      state.raw = point;
+      const mark = accept(point,candidate(point),true);
+      return [mark,{point,newSegment:false}];
+    }
+    function move(point) {
+      const marks = [];
+      state.outside = state.exited = false;
+      if (!state.raw || state.done) return marks;
+      const origin = state.raw;
+      const count = Math.max(1,Math.ceil(distance(origin,point)/options.sampleStep));
+      for (let index=1;index<=count;index++) {
+        const sample = {x:origin.x+(point.x-origin.x)*index/count,y:origin.y+(point.y-origin.y)*index/count};
+        const p = candidate(sample);
+        if (!p) {
+          state.outside = true;
+          if (!offPath) state.exited = true;
+          offPath = true; state.connected = false;
+          continue;
+        }
+        marks.push(accept(sample,p,!state.connected));
+        if (state.done) break;
+      }
+      state.raw = point;
+      return marks;
+    }
+    return {state,reset,start,pause,canResume,resume,move};
+  }
+
   // A point is a separate contact, not a tiny line or a pre-drawn decoration.
-  // The existing polyline tracker remains unchanged.
   function createDotTracker(center, options) {
     const state = { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false };
     function reset() {
@@ -152,7 +229,7 @@
     return { state,reset,start,pause() {},canResume() { return false; },resume() { return null; },move() { return []; } };
   }
 
-  const api = { createPath, at, project, createTracker, createDotTracker, distance };
+  const api = { createPath, at, project, createTracker, createEasyTracker, createDotTracker, distance };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.TraceGeometry = api;
 })(globalThis);

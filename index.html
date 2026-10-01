@@ -57,10 +57,15 @@
             <output id="height-label">Altura habitual</output>
             <button id="height-up" type="button">SUBIR</button>
           </div>
-          <p>Cómo continuar el trazo</p>
-          <div class="help-controls" role="group" aria-label="Ayuda para continuar">
-            <button id="strict" type="button" aria-pressed="true">GESTO CONTINUO</button>
-            <button id="help" type="button" aria-pressed="false">CON AYUDA</button>
+          <p>Dificultad</p>
+          <div class="help-controls" role="group" aria-label="Dificultad del ejercicio">
+            <button id="help" type="button" aria-pressed="true">FÁCIL</button>
+            <button id="strict" type="button" aria-pressed="false">DIFÍCIL</button>
+          </div>
+          <div class="background-controls">
+            <button id="background-button" type="button">CARGAR FONDO</button>
+            <span id="background-status" class="background-status" role="status"></span>
+            <input id="background-file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Elegir imagen de fondo" hidden>
           </div>
           <button id="settings-close" class="settings-close" type="button">LISTO</button>
         </section>

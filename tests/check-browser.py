@@ -117,10 +117,11 @@ with sync_playwright() as p:
         page.locator('#help').click()
         page.locator('#settings-close').click()
         assert stroke_model(page.locator('.stroke').first)(0)[1] > before_y
-        assert page.evaluate("JSON.parse(localStorage.getItem('trazos.preferences.v1')).assisted")
+        assert page.evaluate("JSON.parse(localStorage.getItem('trazos.preferences.v2')).difficulty === 'easy'")
         stroke = page.locator('.stroke').first
         point = stroke_model(stroke)
-        # Accepted ink retains a real lateral offset.
+        # Accepted ink retains a real lateral offset; start marker stays fixed.
+        origin_transform = stroke.locator('.origin').get_attribute('transform')
         offset = 30*point.scale
         page.mouse.move(point(0)[0]+offset,point(0)[1]);page.mouse.down()
         for step in range(1,31):
@@ -128,7 +129,7 @@ with sync_playwright() as p:
         page.mouse.up()
         values = [float(v) for v in re.findall(r'-?\d+(?:\.\d+)?',stroke.locator('.ink').get_attribute('d'))]
         assert all(abs(x-point(0)[0]-offset)<0.02 for x in values[::2]), 'Ink is not snapped to template'
-        assert stroke.locator('.origin').get_attribute('data-resume') == 'true'
+        assert stroke.locator('.origin').get_attribute('transform') == origin_transform
         prefix = stroke.locator('.ink').get_attribute('d')
         mouse_trace(page,stroke,0.3,1)
         assert finished(stroke) and stroke.locator('.ink').get_attribute('d').startswith(prefix)
@@ -166,6 +167,26 @@ with sync_playwright() as p:
         for button in page.locator('.teacher-controls button').all():
             bounds = button.bounding_box()
             assert bounds['x'] >= 0 and bounds['x']+bounds['width'] <= width
+        # Hard mode restarts only the current figure after leaving its lane.
+        page.locator('#settings-button').click()
+        page.locator('#strict').click()
+        page.locator('#settings-close').click()
+        hard_stroke = page.locator('.stroke').first
+        point = stroke_model(hard_stroke)
+        page.mouse.move(*point(0));page.mouse.down()
+        page.mouse.move(*point(0.2))
+        x,y = point(0.2);page.mouse.move(x+160*point.scale,y)
+        page.mouse.up()
+        assert hard_stroke.locator('.ink').get_attribute('d') == ''
+        assert not finished(hard_stroke)
+        # Loading the original image uses a native local file selector.
+        import base64
+        png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC')
+        page.locator('#settings-button').click()
+        page.locator('#background-file').set_input_files({'name':'background-test.png','mimeType':'image/png','buffer':png})
+        page.wait_for_function("document.querySelector('#exercise').style.backgroundImage.includes('data:image/png')")
+        page.reload()
+        assert page.locator('#exercise').evaluate("el => el.style.backgroundImage.includes('data:image/png')")
         assert not errors,errors
         context.close()
     browser.close()

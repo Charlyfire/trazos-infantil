@@ -47,18 +47,22 @@
     square: "M5 5v22h22V5Z",
     rectangle: "M3 8v16h26V8Z",
     triangle: "M16 4 3 27h26Z",
-    castle: "M7 24H3V8h7v16h7V8h7v16h5",
+    castle: "M3 24h3V8h6v16h6V8h6v16h5",
     "surf-wave": "M3 24q6-28 13 0 6-28 13 0",
     zigzag: "M3 24 10 8l7 16 7-16 5 16",
   };
   TEMPLATE_ICONS["bars-dots"] = TEMPLATE_ICONS.vertical;
   TEMPLATE_ICONS["dot-wave"] = TEMPLATE_ICONS.wave;
-  const preferences = { heightRatio: SETTINGS.lowerAreaRatio, assisted: false };
+  const preferences = { heightRatio: SETTINGS.lowerAreaRatio, difficulty: "easy" };
   try {
-    const saved = JSON.parse(window.localStorage.getItem("trazos.preferences.v1"));
+    const saved = JSON.parse(window.localStorage.getItem("trazos.preferences.v2") || window.localStorage.getItem("trazos.preferences.v1"));
     if (saved && Number.isFinite(saved.heightRatio)) preferences.heightRatio = Math.max(0.45,Math.min(0.7,saved.heightRatio));
-    if (saved && typeof saved.assisted === "boolean") preferences.assisted = saved.assisted;
+    if (saved && ["easy","hard"].includes(saved.difficulty)) preferences.difficulty = saved.difficulty;
   } catch { /* Optional device preferences; file:// or private storage may deny access. */ }
+  try {
+    const background = window.localStorage.getItem("trazos.background.v1");
+    if (background && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(background)) exercise.style.backgroundImage = `url("${background}")`;
+  } catch { /* The project PNG remains the default if storage is unavailable. */ }
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
   const activePointers = new Map();
   let exerciseIndex = 0;
@@ -101,7 +105,7 @@
   }
 
   function savePreferences() {
-    try { window.localStorage.setItem("trazos.preferences.v1",JSON.stringify(preferences)); } catch { /* Optional. */ }
+    try { window.localStorage.setItem("trazos.preferences.v2",JSON.stringify(preferences)); } catch { /* Optional. */ }
   }
 
   function updateTeacherControls() {
@@ -109,8 +113,9 @@
     document.querySelector("#height-label").textContent = labels[Math.round(preferences.heightRatio*100)] || "Altura ajustada";
     document.querySelector("#height-down").disabled = preferences.heightRatio <= 0.45;
     document.querySelector("#height-up").disabled = preferences.heightRatio >= 0.7;
-    document.querySelector("#strict").setAttribute("aria-pressed",String(!preferences.assisted));
-    document.querySelector("#help").setAttribute("aria-pressed",String(preferences.assisted));
+    document.querySelector("#strict").setAttribute("aria-pressed",String(preferences.difficulty === "hard"));
+    document.querySelector("#help").setAttribute("aria-pressed",String(preferences.difficulty === "easy"));
+    exercise.setAttribute("data-difficulty",preferences.difficulty);
     playButton.hidden = mode !== "demo";
     playButton.disabled = reducedMotion || activePointers.size > 0;
   }
@@ -157,17 +162,11 @@
     for (const [index, stroke] of route.strokes.entries()) {
       const preview = demonstration?.route === route;
       const current = preview ? index === demonstration.strokeIndex : !route.finished && !stroke.finished && index === route.currentStroke;
-      const pausedResume = current && !preview && preferences.assisted && route.pointerId === null && stroke.tracker.state.lastAccepted !== null;
       const progress = preview ? demonstration.fraction : stroke.path.length ? stroke.tracker.state.progress/stroke.path.length : 0;
-      const nearEnd = stroke.closed && (preview || route.pointerId !== null || pausedResume) && progress > 0.65;
-      const marker = pausedResume ? stroke.tracker.state.lastAccepted : stroke.start;
-      stroke.origin.setAttribute("transform",`translate(${marker.x} ${marker.y}) scale(${stroke.scale})`);
-      stroke.origin.setAttribute("data-resume",String(pausedResume));
-      const along = pausedResume ? stroke.tracker.state.along : 0;
-      const tangent = stroke.path.segments.find(segment => segment.start+segment.length >= along) || stroke.path.segments.at(-1) || { ux:0,uy:1 };
-      stroke.direction.setAttribute("transform",`rotate(${Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90})`);
+      const nearEnd = stroke.closed && progress > 0.65;
+      // Position and direction belong to the template, never to the finger.
       const showingDot = preview && stroke.kind === "dot" && demonstration.fraction >= 0.5;
-      stroke.origin.setAttribute("data-visible", String(current && !showingDot && (pausedResume || (!nearEnd && (preview || !stroke.resuming)))));
+      stroke.origin.setAttribute("data-visible", String(current && !showingDot));
       stroke.destination.setAttribute("data-visible", String(stroke.finished || (current && stroke.kind !== "dot" && (!stroke.closed || nearEnd))));
     }
   }
@@ -176,10 +175,10 @@
     stroke.tracker.reset();
     stroke.inkPath = "";
     stroke.finished = false;
-    stroke.resuming = false;
     stroke.ink.setAttribute("d", "");
     stroke.demoInk.setAttribute("d", "");
     stroke.group.classList.remove("celebrating");
+    stroke.group.classList.remove("off-path");
     stroke.group.setAttribute("data-finished", "false");
   }
 
@@ -206,6 +205,7 @@
     const path = kind === "dot" ? { points:spec.points,segments:[],length:0 } : Geometry.createPath(spec.points);
     const start = path.points[0], end = path.points.at(-1);
     const group = svgNode("g", { class: "stroke", "data-stroke": index, "data-kind":kind, "data-finished": "false" }, route.group);
+    group.addEventListener("animationend",event=>{ if (event.animationName === "boundary-flash") group.classList.remove("off-path"); });
     const pathString = spec.points.map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`).join(" ");
     svgNode("path", { class: "track-border", d: pathString, "stroke-width": (SETTINGS.pathWidth+6)*scale }, group);
     svgNode("path", { class: "track", d: pathString, "stroke-width": SETTINGS.pathWidth*scale, "data-closed": String(spec.closed) }, group);
@@ -213,8 +213,12 @@
       const { tag, ...attributes } = guide;
       svgNode(tag, { class: "guide", ...attributes }, group);
     }
-    const ink = svgNode("path", { class: "ink", d: "", "stroke-width": SETTINGS.inkWidth*scale }, group);
-    const demoInk = svgNode("path", { class: "demo-ink", d: "", "stroke-width": SETTINGS.inkWidth*scale }, group);
+    const maskId = `lane-${route.group.getAttribute("data-route")}-${index}`;
+    const mask = svgNode("mask", {id:maskId,maskUnits:"userSpaceOnUse",x:route.cell.x,y:route.cell.y,width:route.cell.w,height:route.cell.h,"mask-type":"alpha"},group);
+    if (kind === "dot") svgNode("circle",{cx:start.x,cy:start.y,r:SETTINGS.startRadius*scale,fill:"white"},mask);
+    else svgNode("path",{d:pathString,fill:"none",stroke:"white","stroke-width":SETTINGS.pathWidth*scale,"stroke-linecap":"round","stroke-linejoin":"round"},mask);
+    const ink = svgNode("path", { class: "ink", d: "", mask:`url(#${maskId})`, "stroke-width": SETTINGS.inkWidth*scale }, group);
+    const demoInk = svgNode("path", { class: "demo-ink", d: "", mask:`url(#${maskId})`, "stroke-width": SETTINGS.inkWidth*scale }, group);
     // Leave the entire accepted tap area visible beside the finished star.
     const goal = kind === "dot" ? { x:end.x,y:end.y+145*scale } : end;
     const destination = svgNode("g", { class: "destination", transform: `translate(${goal.x} ${goal.y}) scale(${scale})` }, group);
@@ -222,42 +226,31 @@
     const goalArt = svgNode("g", { class: "goal-art" }, destination);
     svgNode("path", { class: "star", d: "M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" }, goalArt);
     svgNode("path", { class: "star-shine", d: "M-8-30-3-39 4-24 M-32-9-22-10" }, goalArt);
-    const verticalRoute = route.templateId === "vertical" || route.templateId === "vertical-up";
-    const origin = svgNode("g", { class: "origin", "data-kind": kind === "dot" ? "dot" : verticalRoute ? "rocket" : "arrow", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
-    const startArt = svgNode("g", { class: "start-art" }, origin);
-    svgNode("circle", { class: "start-glow", r: 60 }, startArt);
-    svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, startArt);
+    const origin = svgNode("g", { class: "origin", "data-kind": kind === "dot" ? "dot" : "arrow", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
+    if (kind === "dot") {
+      const startArt = svgNode("g", { class: "start-art" }, origin);
+      svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, startArt);
+    }
     const tangent = path.segments[0] || { ux:0,uy:1 };
     const angle = Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90;
-    if (verticalRoute) makeRocket(startArt,angle);
-    const direction = svgNode("path", { class: "direction", d: verticalRoute ? "M-10 36 0 46 10 36 M0 46V30" : "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
+    const direction = svgNode("path", { class: "direction", d: "M-13-15 0 0 13-15 M0 0V-34", transform: `rotate(${angle})` }, origin);
     const options = {
       startRadius: SETTINGS.startRadius*scale,
       endRadius: SETTINGS.endRadius*scale,
-      tolerance: Math.min(SETTINGS.tolerance*scale,spec.tolerance ?? Infinity),
+      tolerance: Math.min(SETTINGS.tolerance*scale,SETTINGS.pathWidth*scale/2,spec.tolerance ?? Infinity),
       sampleStep: SETTINGS.sampleStep*scale,
       joinRadius: SETTINGS.inkWidth*scale/2,
       contains: point => point.x >= route.cell.x && point.x <= route.cell.x+route.cell.w
         && point.y >= route.cell.y && point.y <= route.cell.y+route.cell.h,
     };
-    const tracker = kind === "dot" ? Geometry.createDotTracker(start,options) : Geometry.createTracker(path,options);
-    return { kind, path, start, end, scale, group, ink, demoInk, origin, direction, destination, tracker, closed: spec.closed, finished: false, resuming: false, inkPath: "" };
-  }
-
-  function makeRocket(parent, angle) {
-    const rocket = svgNode("g", { class: "rocket", transform:`rotate(${angle})`, "aria-hidden": "true" }, parent);
-    svgNode("path", { class: "rocket-flame", d: "M-10-24Q-14-33 0-43 14-33 10-24Z" }, rocket);
-    svgNode("path", { class: "rocket-fin", d: "M-15-14Q-33-10-30 15l16-7 M15-14Q33-10 30 15L14 8" }, rocket);
-    svgNode("path", { class: "rocket-body", d: "M-16-25Q-24 7 0 27 24 7 16-25Z" }, rocket);
-    svgNode("path", { class: "rocket-nose", d: "M-11 13Q0 31 11 13Z" }, rocket);
-    svgNode("circle", { class: "rocket-window", cx: 0, cy: -7, r: 9 }, rocket);
-    svgNode("path", { class: "rocket-shine", d: "M-8-19q-3 7-2 12" }, rocket);
+    const tracker = kind === "dot" ? Geometry.createDotTracker(start,options) : preferences.difficulty === "easy" ? Geometry.createEasyTracker(path,options) : Geometry.createTracker(path,options);
+    return { kind, path, start, end, scale, group, ink, demoInk, origin, direction, destination, tracker, closed: spec.closed, finished: false, inkPath: "" };
   }
 
   function makeRoute(current, cell, index) {
     const scale = Math.min(1,cell.w/220,cell.h/300);
     const group = svgNode("g", { class: "route", "data-route": index, "data-finished": "false" });
-    const route = { cell, group, templateId: current.id, strokes: [], currentStroke: 0, pointerId: null, finished: false };
+    const route = { cell, group, strokes: [], currentStroke: 0, pointerId: null, finished: false };
     route.strokes = Templates.build(current.id,cell,scale).map((spec,i) => makeStroke(route,spec,i));
     updateMarkers(route);
     return route;
@@ -314,7 +307,7 @@
     picker.value = String(exerciseIndex);
     updateTeacherControls();
     refreshCompletion();
-    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en ${current.id.startsWith("vertical") ? "el círculo con el cohete" : "el círculo"} y sigue el camino hasta su estrella.`);
+    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en la flecha fija y sigue el camino hasta su estrella.`);
     if (mode === "demo" && settingsPanel.hidden && !reducedMotion) playDemonstration();
   }
 
@@ -416,12 +409,11 @@
     layout();
   }
 
-  function setAssisted(value) {
-    preferences.assisted = value;
-    releaseAllPointers();
-    routes.forEach(updateMarkers);
+  function setDifficulty(value) {
+    if (preferences.difficulty === value) return;
+    preferences.difficulty = value;
     savePreferences();
-    updateTeacherControls();
+    layout();
   }
 
   function coordinates(event) {
@@ -432,6 +424,9 @@
   function drawMarks(stroke, marks) {
     for (const { point, newSegment } of marks) stroke.inkPath += `${newSegment ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)} `;
     if (marks.length) stroke.ink.setAttribute("d",stroke.inkPath);
+  }
+  function flashBorder(stroke) {
+    stroke.group.classList.add("off-path");
   }
   function prepareAudio() {
     try {
@@ -484,6 +479,14 @@
   function advance(route, event) {
     const stroke = route.strokes[route.currentStroke];
     drawMarks(stroke,stroke.tracker.move(coordinates(event)));
+    if (stroke.tracker.state.exited) flashBorder(stroke);
+    if (reducedMotion && !stroke.tracker.state.outside) stroke.group.classList.remove("off-path");
+    if (stroke.tracker.state.outside && preferences.difficulty === "hard") {
+      resetRoute(route);
+      flashBorder(stroke);
+      refreshCompletion();
+      return;
+    }
     updateMarkers(route);
     if (stroke.tracker.state.done) finishStroke(route,stroke);
   }
@@ -497,16 +500,16 @@
     const route = routes.find(item => {
       if (item.finished || item.pointerId !== null) return false;
       const stroke = item.strokes[item.currentStroke];
-      if (preferences.assisted && stroke.tracker.state.lastAccepted) return stroke.tracker.canResume(point);
-      return Geometry.distance(point,stroke.start) <= SETTINGS.startRadius*stroke.scale;
+      if (preferences.difficulty === "easy" && stroke.tracker.state.lastAccepted) return stroke.tracker.canResume(point);
+      return Geometry.distance(point,stroke.start) <= SETTINGS.startRadius*stroke.scale
+        && (stroke.kind === "dot" || Geometry.project(stroke.path,point,0).distance <= SETTINGS.pathWidth*stroke.scale/2);
     });
     if (!route) return;
     const stroke = route.strokes[route.currentStroke];
     // Preserve earlier strokes of this figure and every other child's work.
     let marks;
-    if (preferences.assisted && stroke.tracker.state.lastAccepted) {
+    if (preferences.difficulty === "easy" && stroke.tracker.state.lastAccepted) {
       marks = stroke.tracker.resume(point);
-      stroke.resuming = true;
     } else {
       resetStroke(stroke);
       marks = stroke.tracker.start(point);
@@ -529,7 +532,7 @@
     const samples = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
     for (const sample of samples.length ? samples : [event]) {
       advance(route,sample);
-      if (stroke.finished) break;
+      if (stroke.finished || route.pointerId === null) break;
     }
   });
 
@@ -550,8 +553,35 @@
   activate(document.querySelector("#settings-close"),closeSettings);
   activate(document.querySelector("#height-down"), () => changeHeight(-0.05));
   activate(document.querySelector("#height-up"), () => changeHeight(0.05));
-  activate(document.querySelector("#strict"), () => setAssisted(false));
-  activate(document.querySelector("#help"), () => setAssisted(true));
+  activate(document.querySelector("#strict"), () => setDifficulty("hard"));
+  activate(document.querySelector("#help"), () => setDifficulty("easy"));
+  const backgroundInput = document.querySelector("#background-file");
+  activate(document.querySelector("#background-button"),()=>backgroundInput.click());
+  backgroundInput.addEventListener("change",()=>{
+    const file = backgroundInput.files?.[0];
+    const status = document.querySelector("#background-status");
+    if (!file) return;
+    if (!["image/png","image/jpeg","image/webp"].includes(file.type) || file.size > 8*1024*1024) {
+      status.textContent = "Elige una imagen PNG";
+      backgroundInput.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = ()=>{ status.textContent = "Vuelve a elegir la imagen"; };
+    reader.onload = ()=>{
+      const image = new Image();
+      image.onerror = ()=>{ status.textContent = "Elige otra imagen"; };
+      image.onload = ()=>{
+        exercise.style.backgroundImage = `url("${reader.result}")`;
+        status.textContent = "Fondo guardado";
+        try { window.localStorage.setItem("trazos.background.v1",reader.result); }
+        catch { status.textContent = "Fondo para esta sesión"; }
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    backgroundInput.value = "";
+  });
   picker.addEventListener("change", () => {
     const index = Number(picker.value);
     if (Number.isInteger(index) && index >= 0 && index < EXERCISES.length) showExercise(index);
