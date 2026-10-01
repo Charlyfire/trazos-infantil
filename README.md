@@ -1,6 +1,6 @@
 # TRAZOS
 
-Aplicación táctil de grafomotricidad para niños de 3 años en una PDI. HTML, CSS y JavaScript vanilla, sin frameworks, backend ni dependencias de ejecución. Incluye 20 familias de ejercicios.
+Aplicación táctil de grafomotricidad para niños de 3 años en una PDI. HTML, CSS y JavaScript vanilla, sin frameworks, backend ni dependencias de ejecución. Incluye 29 familias de ejercicios.
 
 ## Ejecutar y poner el fondo
 
@@ -20,7 +20,7 @@ También puedes abrir los ajustes del profesor y pulsar **CARGAR FONDO** para el
 
 ## Uso en clase
 
-Pulsa **EMPEZAR**. Se abre **DEMOSTRACIÓN**, con una figura grande. El selector permite elegir cualquiera de las 20 plantillas. **PRÁCTICA** muestra varias copias para que trabajen dos o tres niños simultáneamente, o un niño por turnos. Cada figura tiene un botón **REPETIR** que conserva el trabajo de sus compañeros. Con una sola figura terminada aparecen los botones grandes REPETIR y SIGUIENTE.
+Pulsa **EMPEZAR**. Se abre **DEMOSTRACIÓN**, con una figura grande. El selector permite elegir cualquiera de las 29 plantillas. **PRÁCTICA** muestra varias copias para que trabajen dos o tres niños simultáneamente, o un niño por turnos. Cada figura tiene un botón **REPETIR** que conserva el trabajo de sus compañeros. Con una sola figura terminada aparecen los botones grandes REPETIR y SIGUIENTE.
 
 Los controles superiores mantienen inicio, demostración/práctica, repetición general, siguiente, reproducción de la demostración y ajustes. Los botones se usan con Pointer Events y teclado; no dependen de hover.
 
@@ -72,12 +72,41 @@ El botón de reproducción permite repetir o detener la animación. Tocar el dib
 | Palos y puntos | 1 línea + 1 toque | 4 |
 | Círculo y cruz | 3 | 3 |
 | Camino de puntos | 1 | 3 |
+| Zig-zag estrecho | 1 | 3 |
+| Ondas estrechas | 1 | 3 |
+| Arcos hacia arriba | 1 | 3 |
+| Arcos hacia abajo | 1 | 3 |
+| Bucles hacia abajo | 1 | 3 |
+| Bucles hacia arriba | 1 | 3 |
+| Grecas | 1 | 3 |
+| Castillos altos y bajos | 1 | 3 |
+| Bucles laterales | 1 | 3 |
 
 Los círculos y óvalos empiezan **arriba hacia la izquierda**. Las dos líneas de la X descienden. Los contornos cerrados se recorren con un solo gesto por parte; tocar su punto inicial no completa la vuelta. La estrella aparece al acercarse a terminarla.
 
 **Castillos**, según la última plantilla adjunta, empieza **a la derecha**, luego sube, avanza a la derecha, baja y repite derecha, arriba, derecha, abajo; termina con un tramo horizontal hacia la derecha. Las almenas conservan una proporción horizontal y dejan espacio entre carriles. En práctica se limita la cantidad de repeticiones para que se distingan las esquinas y se puedan trazar con el dedo.
 
 Ondas alterna subidas y bajadas; Olas muestra arcos sobre una misma base. En Camino de puntos las marcas guían un camino continuo. En Palos y puntos, primero se hace el palo; después aparece una zona vacía de contorno discontinuo para marcar el punto con **un contacto nuevo**. La estrella queda separada para que el punto pintado permanezca visible. No hay un punto ya dibujado.
+
+### Trazos del PDF «carreras de grafos 2»
+
+Las dos páginas se han usado como referencia de geometría. Los zig-zags amplios, las horizontales y las ondas amplias ya estaban disponibles y conservan su entrada y comportamiento. Se añaden las otras nueve variantes:
+
+| Referencia en el PDF | Selector |
+| --- | --- |
+| Página 1, fila 2 | Zig-zag estrecho |
+| Página 1, fila 5 | Ondas estrechas |
+| Página 1, fila 6 | Arcos hacia arriba |
+| Página 2, fila 1 | Bucles hacia abajo |
+| Página 2, fila 2 | Arcos hacia abajo |
+| Página 2, fila 3 | Bucles hacia arriba |
+| Página 2, fila 4 | Grecas |
+| Página 2, fila 5 | Castillos altos y bajos |
+| Página 2, fila 6 | Bucles laterales |
+
+Los arcos nuevos utilizan medias elipses; **Olas** conserva sus curvas anteriores. Las grecas y los castillos alternos empiezan subiendo, como en el PDF; **Castillos** conserva su inicio hacia la derecha. Los bucles laterales avanzan horizontalmente, comenzando con una curva hacia la izquierda y abajo. El número de repeticiones del motivo se adapta al espacio de una figura táctil; no se copian los coches, números ni una dinámica de competición. No se añaden dependencias ni se modifica `tracing.js`.
+
+Cada nueva figura tiene un recorrido continuo y admite hasta tres copias. El ancho mínimo de columna es de 540 píxeles: en una pantalla de 1280 píxeles aparecen dos; en una PDI de 1920 aparecen tres. En pantallas más estrechas se muestra una. Grosor y tolerancia se escalan con la separación de los motivos para conservar sus huecos y sus cruces.
 
 ## Archivos y nuevos ejercicios
 
@@ -116,9 +145,9 @@ Sin instalar dependencias:
 node tests/check-logic.cjs
 ```
 
-La suite ejecuta el código real en un DOM simulado. Comprueba las 20 familias, fácil/difícil, demostración/práctica, varios tamaños, ratón/tacto/lápiz, inicio obligatorio, cobertura sin huecos, flecha fija, aviso de salida, reinicio difícil, tres contactos independientes, repetición individual, máscaras de tinta y carga/persistencia del fondo.
+La suite ejecuta el código real en un DOM simulado. Comprueba las 29 familias, fácil/difícil, demostración/práctica, varios tamaños, ratón/tacto/lápiz, inicio obligatorio, cobertura sin huecos, flecha fija, aviso de salida, reinicio difícil, tres contactos independientes, repetición individual, máscaras de tinta y carga/persistencia del fondo. Las nuevas plantillas tienen comprobaciones adicionales de dirección, alternancia de alturas, demostración pintada y rechazo de atajos entre sus extremos.
 
-**Estado:** 25.413 comprobaciones de lógica pasan. Se ha comprobado también con un renderizado SVG que la tinta es transparente fuera del carril. Las revisiones estáticas de SVG no son capturas de navegador.
+**Estado:** 33.657 comprobaciones de lógica pasan. Se ha comprobado también con un renderizado SVG que la tinta es transparente fuera del carril y se han revisado visualmente los nueve recorridos nuevos. Una comparación con la versión anterior confirma que las veinte plantillas originales mantienen sus entradas y geometrías. Las revisiones estáticas de SVG no son capturas de navegador.
 
 La comprobación opcional de navegador utiliza Playwright y Chromium como herramientas de desarrollo:
 

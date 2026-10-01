@@ -22,6 +22,15 @@
     { id: "bars-dots", name: "Palos y puntos", copies: 4 },
     { id: "circle-plus", name: "Círculo y cruz", copies: 3, minWidth: 340 },
     { id: "dot-wave", name: "Camino de puntos", copies: 3 },
+    { id: "zigzag-tight", name: "Zig-zag estrecho", copies: 3, minWidth: 540 },
+    { id: "wave-tight", name: "Ondas estrechas", copies: 3, minWidth: 540 },
+    { id: "arches-up", name: "Arcos hacia arriba", copies: 3, minWidth: 540 },
+    { id: "arches-down", name: "Arcos hacia abajo", copies: 3, minWidth: 540 },
+    { id: "loops-down", name: "Bucles hacia abajo", copies: 3, minWidth: 540 },
+    { id: "loops-up", name: "Bucles hacia arriba", copies: 3, minWidth: 540 },
+    { id: "battlements", name: "Grecas", copies: 3, minWidth: 540 },
+    { id: "castle-alternating", name: "Castillos altos y bajos", copies: 3, minWidth: 540 },
+    { id: "loops-side", name: "Bucles laterales", copies: 3, minWidth: 540 },
   ];
 
   function build(id, cell, baseScale) {
@@ -59,6 +68,52 @@
         return point(t,(arches ? 0.7 : 0.5)-amplitude*curve);
       });
       return { ...path(points,scale), tolerance: height*0.8 };
+    }
+    // Worksheet patterns share a horizontal, proportionate working area. Their
+    // lane width follows the separation of the bends, even in narrow viewports.
+    function racePath(coordinates, aspect, detail) {
+      const height = Math.min(bounds.h,bounds.w*aspect);
+      const points = coordinates.map(([x,y])=>({x:bounds.x+x*bounds.w,y:bounds.y+bounds.h/2+(y-0.5)*height}));
+      return path(points,Math.min(baseScale,bounds.w/detail,height/160));
+    }
+    function sampleCurve(curve, samples) {
+      return Array.from({length:samples+1},(_,i)=>curve(i/samples));
+    }
+    function arches(inverted) {
+      const cycles = 3, coordinates = [];
+      // Half ellipses give rounded arches and a clear cusp on the baseline.
+      for(let arch=0;arch<cycles;arch++) {
+        const arc = sampleCurve(t=>[(arch+(1-Math.cos(t*Math.PI))/2)/cycles,inverted ? Math.sin(t*Math.PI) : 1-Math.sin(t*Math.PI)],80);
+        coordinates.push(...(arch ? arc.slice(1) : arc));
+      }
+      return racePath(coordinates,1/6,720);
+    }
+    function loops(inverted, sideways = false) {
+      const cycles = 3;
+      const coordinates = sampleCurve(t=>{
+        const angle = t*cycles*2*Math.PI;
+        const along = t+(sideways ? -1 : 1)*0.4/cycles*Math.sin(angle);
+        const across = (1-Math.cos(angle))/2;
+        return [along,inverted ? 1-across : across];
+      },Math.max(360,Math.ceil(bounds.w/2)));
+      if(sideways) {
+        // The worksheet's sideways loops travel horizontally: each bend
+        // first curves left, then rounds the bottom towards the next bend.
+        const min = Math.min(...coordinates.map(([x])=>x));
+        const max = Math.max(...coordinates.map(([x])=>x));
+        return racePath(coordinates.map(([x,y])=>[(x-min)/(max-min),y]),0.2,1200);
+      }
+      return racePath(coordinates,0.28,1200);
+    }
+    function battlements(alternating) {
+      const count = 4;
+      const coordinates = [[0,1]];
+      for(let i=0;i<count;i++) {
+        const top = alternating && i%2 ? 0.5 : 0;
+        const left = i/count, right = (i+0.5)/count, end = (i+1)/count;
+        coordinates.push([left,top],[right,top],[right,1],[end,1]);
+      }
+      return racePath(coordinates,alternating ? 0.22 : 0.14,1250);
     }
     const center = point(0.5,0.5);
     const radius = Math.min(bounds.w,bounds.h)/2;
@@ -125,6 +180,18 @@
         v.scale = h.scale = scale;
         return [circle,v,h];
       }
+      case "zigzag-tight": {
+        const points = Array.from({length:13},(_,i)=>[i/12,i%2 ? 0 : 1]);
+        return [racePath(points,0.2,1200)];
+      }
+      case "wave-tight": return [racePath(sampleCurve(t=>[t,(1+Math.cos(t*12*Math.PI))/2],480),0.16,1200)];
+      case "arches-up": return [arches(false)];
+      case "arches-down": return [arches(true)];
+      case "loops-down": return [loops(false)];
+      case "loops-up": return [loops(true)];
+      case "loops-side": return [loops(false,true)];
+      case "battlements": return [battlements(false)];
+      case "castle-alternating": return [battlements(true)];
       default: throw new Error(`Unknown template: ${id}`);
     }
   }

@@ -290,12 +290,47 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
  el('play-demo').dispatch('click');el('document').hidden=true;el('document').dispatch('visibilitychange');
  check(el.pendingFrames()===0&&!done(groups(el)[0]),'Backgrounding stops the guide without completing a figure');
 }
+// The worksheet adds variants without replacing the existing directions.
+const worksheetIds=['zigzag-tight','wave-tight','arches-up','arches-down','loops-down','loops-up','battlements','castle-alternating','loops-side'];
+{
+ const cell={x:0,y:0,w:620,h:600};
+ check(new Set(T.catalog.map(t=>t.id)).size===T.catalog.length,'No duplicated selector entries');
+ for(const id of worksheetIds) {
+   const [stroke]=T.build(id,cell,1),p=stroke.points;
+   check(p.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=cell.x&&p.x<=cell.w&&p.y>=cell.y&&p.y<=cell.h),`${id}: all coordinates fit the figure`);
+   check(!stroke.closed&&p.at(-1).x>p[0].x,`${id}: an open path advances across the worksheet`);
+ }
+ const build=id=>T.build(id,cell,1)[0].points;
+ for(const id of ['arches-up','loops-up'])check(build(id)[1].y<build(id)[0].y,`${id}: the first bend rises`);
+ for(const id of ['arches-down','loops-down'])check(build(id)[1].y>build(id)[0].y,`${id}: the first bend descends`);
+ const sideways=build('loops-side');check(sideways[1].x<sideways[0].x&&sideways[1].y>sideways[0].y,'Sideways loops first curve left and down, then travel horizontally');
+ for(const id of ['battlements','castle-alternating'])check(build(id)[1].y<build(id)[0].y,'The new worksheet battlements start upwards');
+ const tops=build('castle-alternating').filter((_,i)=>i%4===1).map(p=>p.y);
+ check(tops[0]<tops[1]&&tops[0]===tops[2]&&tops[1]===tops[3],'The castle alternates tall and low towers');
+}
+for(const difficulty of ['easy','hard'])for(const id of worksheetIds) {
+ const el=setup(1920,1080,{saved:{difficulty}});el('practice').dispatch('click');select(el,T.catalog.findIndex(t=>t.id===id));
+ const stroke=strokes(groups(el)[0])[0],m=model(stroke);
+ send(el,'pointerdown',m.points[0]);send(el,'pointermove',m.points.at(-1));send(el,'pointerup',m.points.at(-1));
+ check(!done(stroke),`${id}/${difficulty}: a straight shortcut cannot complete the bends or loops`);
+ gesture(el,stroke,'touch');check(done(stroke),`${id}/${difficulty}: tracing every bend completes the figure`);
+}
+for(const id of worksheetIds) {
+ const el=setup(1920,1080);select(el,T.catalog.findIndex(t=>t.id===id));
+ const stroke=strokes(groups(el)[0])[0],origin=child(stroke,'origin').getAttribute('transform');
+ el.frame(0);el.frame(2000);
+ check(child(stroke,'demo-ink').getAttribute('d').length>10,'Each new worksheet path is painted during the demonstration');
+ el.frame(13000);
+ check(!done(stroke)&&ink(stroke)===''&&child(stroke,'demo-ink').getAttribute('d').length>10,'The painted worksheet example remains without awarding child completion');
+ check(child(stroke,'origin').getAttribute('transform')===origin,'The worksheet start stays fixed during the demonstration');
+}
+
 // Requested teaching directions and catalog removals are explicit contracts.
 {
  const cell={x:0,y:0,w:620,h:600};
  const build=id=>T.build(id,cell,1);
  const deltas=stroke=>({x:stroke.points.at(-1).x-stroke.points[0].x,y:stroke.points.at(-1).y-stroke.points[0].y});
- check(T.catalog.length===20,'The updated catalog contains twenty families');
+ check(T.catalog.length===29,'The catalog includes the nine new worksheet variants');
  check(['ovals','dots-line','double-circle'].every(id=>!T.catalog.some(t=>t.id===id)),'Removed families are absent from the selector');
  for(const [id,axis,sign] of [['vertical','y',1],['vertical-up','y',-1],['horizontal','x',1],['horizontal-left','x',-1]])check(deltas(build(id)[0])[axis]*sign>0,`Required direction: ${id}`);
  check(build('cross').length===2&&build('cross').every(s=>deltas(s).y>0),'Both X diagonals descend');

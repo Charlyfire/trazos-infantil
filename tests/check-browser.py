@@ -66,7 +66,7 @@ with sync_playwright() as p:
         page.goto((ROOT/'index.html').as_uri())
         page.locator('#start').click()
         template_count = page.locator('#template option').count()
-        assert template_count == 20
+        assert template_count == 29
         for mode in ['demo','practice']:
             page.locator('#'+mode).click()
             for template in range(template_count):

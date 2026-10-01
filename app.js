@@ -50,6 +50,15 @@
     castle: "M3 24h3V8h6v16h6V8h6v16h5",
     "surf-wave": "M3 24q6-28 13 0 6-28 13 0",
     zigzag: "M3 24 10 8l7 16 7-16 5 16",
+    "zigzag-tight": "M2 24 5 8l3 16 3-16 3 16 3-16 3 16 3-16 3 16 3-16",
+    "wave-tight": "M2 23q3-28 6 0t6 0 6 0 6 0",
+    "arches-up": "M2 24a7 12 0 0 1 14 0 7 12 0 0 1 14 0",
+    "arches-down": "M2 8a7 12 0 0 0 14 0 7 12 0 0 0 14 0",
+    "loops-down": "M2 5c24 13 6 30 6 15S17 5 30 5",
+    "loops-up": "M2 27c24-13 6-30 6-15S17 27 30 27",
+    battlements: "M3 24V8h7v16h6V8h7v16h6",
+    "castle-alternating": "M2 26V6h6v20h5V16h6v10h5V6h6",
+    "loops-side": "M12 5C-5 5-1 28 12 26S22 6 18 6s-7 20 12 20",
   };
   TEMPLATE_ICONS["bars-dots"] = TEMPLATE_ICONS.vertical;
   TEMPLATE_ICONS["dot-wave"] = TEMPLATE_ICONS.wave;
