@@ -37,16 +37,22 @@
     down: "M6 6l20 20M14 26h12V14",
     up: "M6 26 26 6M14 6h12v12",
     plus: "M16 5v22M5 16h22",
-    ovals: "M3 16h26M12 16a4 8 0 1 0 8 0 4 8 0 1 0-8 0",
+    oval: "M16 7a13 9 0 1 0 0 18 13 9 0 1 0 0-18",
     wave: "M3 16c4-15 9-15 13 0s9 15 13 0",
     circle: "M16 4a12 12 0 1 0 0 24 12 12 0 1 0 0-24",
-    "double-circle": "M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26M16 9a7 7 0 1 0 0 14 7 7 0 1 0 0-14",
     "circle-plus": "M10 8a8 8 0 1 0 0 16 8 8 0 1 0 0-16M25 10v12M19 16h12",
     cross: "M6 6l20 20M6 26 26 6",
+    "vertical-up": "M16 28V4m-8 8 8-8 8 8",
+    "horizontal-left": "M28 16H4m8-8-8 8 8 8",
+    square: "M5 5v22h22V5Z",
+    rectangle: "M3 8v16h26V8Z",
+    triangle: "M16 4 3 27h26Z",
+    castle: "M7 24H3V8h7v16h7V8h7v16h5",
+    "surf-wave": "M3 24q6-28 13 0 6-28 13 0",
+    zigzag: "M3 24 10 8l7 16 7-16 5 16",
   };
   TEMPLATE_ICONS["bars-dots"] = TEMPLATE_ICONS.vertical;
   TEMPLATE_ICONS["dot-wave"] = TEMPLATE_ICONS.wave;
-  TEMPLATE_ICONS["dots-line"] = TEMPLATE_ICONS.horizontal;
   const preferences = { heightRatio: SETTINGS.lowerAreaRatio, assisted: false };
   try {
     const saved = JSON.parse(window.localStorage.getItem("trazos.preferences.v1"));
@@ -152,16 +158,17 @@
       const preview = demonstration?.route === route;
       const current = preview ? index === demonstration.strokeIndex : !route.finished && !stroke.finished && index === route.currentStroke;
       const pausedResume = current && !preview && preferences.assisted && route.pointerId === null && stroke.tracker.state.lastAccepted !== null;
-      const progress = preview ? demonstration.fraction : stroke.tracker.state.progress/stroke.path.length;
+      const progress = preview ? demonstration.fraction : stroke.path.length ? stroke.tracker.state.progress/stroke.path.length : 0;
       const nearEnd = stroke.closed && (preview || route.pointerId !== null || pausedResume) && progress > 0.65;
       const marker = pausedResume ? stroke.tracker.state.lastAccepted : stroke.start;
       stroke.origin.setAttribute("transform",`translate(${marker.x} ${marker.y}) scale(${stroke.scale})`);
       stroke.origin.setAttribute("data-resume",String(pausedResume));
       const along = pausedResume ? stroke.tracker.state.along : 0;
-      const tangent = stroke.path.segments.find(segment => segment.start+segment.length >= along) || stroke.path.segments.at(-1);
+      const tangent = stroke.path.segments.find(segment => segment.start+segment.length >= along) || stroke.path.segments.at(-1) || { ux:0,uy:1 };
       stroke.direction.setAttribute("transform",`rotate(${Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90})`);
-      stroke.origin.setAttribute("data-visible", String(current && (pausedResume || (!nearEnd && (preview || !stroke.resuming)))));
-      stroke.destination.setAttribute("data-visible", String(stroke.finished || (current && (!stroke.closed || nearEnd))));
+      const showingDot = preview && stroke.kind === "dot" && demonstration.fraction >= 0.5;
+      stroke.origin.setAttribute("data-visible", String(current && !showingDot && (pausedResume || (!nearEnd && (preview || !stroke.resuming)))));
+      stroke.destination.setAttribute("data-visible", String(stroke.finished || (current && stroke.kind !== "dot" && (!stroke.closed || nearEnd))));
     }
   }
 
@@ -171,6 +178,7 @@
     stroke.finished = false;
     stroke.resuming = false;
     stroke.ink.setAttribute("d", "");
+    stroke.demoInk.setAttribute("d", "");
     stroke.group.classList.remove("celebrating");
     stroke.group.setAttribute("data-finished", "false");
   }
@@ -194,9 +202,10 @@
 
   function makeStroke(route, spec, index) {
     const scale = spec.scale;
-    const path = Geometry.createPath(spec.points);
+    const kind = spec.kind || "path";
+    const path = kind === "dot" ? { points:spec.points,segments:[],length:0 } : Geometry.createPath(spec.points);
     const start = path.points[0], end = path.points.at(-1);
-    const group = svgNode("g", { class: "stroke", "data-stroke": index, "data-finished": "false" }, route.group);
+    const group = svgNode("g", { class: "stroke", "data-stroke": index, "data-kind":kind, "data-finished": "false" }, route.group);
     const pathString = spec.points.map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`).join(" ");
     svgNode("path", { class: "track-border", d: pathString, "stroke-width": (SETTINGS.pathWidth+6)*scale }, group);
     svgNode("path", { class: "track", d: pathString, "stroke-width": SETTINGS.pathWidth*scale, "data-closed": String(spec.closed) }, group);
@@ -205,20 +214,24 @@
       svgNode(tag, { class: "guide", ...attributes }, group);
     }
     const ink = svgNode("path", { class: "ink", d: "", "stroke-width": SETTINGS.inkWidth*scale }, group);
-    const destination = svgNode("g", { class: "destination", transform: `translate(${end.x} ${end.y}) scale(${scale})` }, group);
+    const demoInk = svgNode("path", { class: "demo-ink", d: "", "stroke-width": SETTINGS.inkWidth*scale }, group);
+    // Leave the entire accepted tap area visible beside the finished star.
+    const goal = kind === "dot" ? { x:end.x,y:end.y+145*scale } : end;
+    const destination = svgNode("g", { class: "destination", transform: `translate(${goal.x} ${goal.y}) scale(${scale})` }, group);
     svgNode("circle", { class: "star-halo", r: 68 }, destination);
     const goalArt = svgNode("g", { class: "goal-art" }, destination);
     svgNode("path", { class: "star", d: "M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" }, goalArt);
     svgNode("path", { class: "star-shine", d: "M-8-30-3-39 4-24 M-32-9-22-10" }, goalArt);
-    const origin = svgNode("g", { class: "origin", "data-kind": route.templateId === "vertical" ? "rocket" : "arrow", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
+    const verticalRoute = route.templateId === "vertical" || route.templateId === "vertical-up";
+    const origin = svgNode("g", { class: "origin", "data-kind": kind === "dot" ? "dot" : verticalRoute ? "rocket" : "arrow", transform: `translate(${start.x} ${start.y}) scale(${scale})` }, group);
     const startArt = svgNode("g", { class: "start-art" }, origin);
     svgNode("circle", { class: "start-glow", r: 60 }, startArt);
     svgNode("circle", { class: "start-disc", r: SETTINGS.startRadius }, startArt);
-    if (route.templateId === "vertical") makeRocket(startArt);
-    const tangent = path.segments[0];
+    const tangent = path.segments[0] || { ux:0,uy:1 };
     const angle = Math.atan2(tangent.uy,tangent.ux)*180/Math.PI-90;
-    const direction = svgNode("path", { class: "direction", d: route.templateId === "vertical" ? "M-10 36 0 46 10 36 M0 46V30" : "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
-    const tracker = Geometry.createTracker(path, {
+    if (verticalRoute) makeRocket(startArt,angle);
+    const direction = svgNode("path", { class: "direction", d: verticalRoute ? "M-10 36 0 46 10 36 M0 46V30" : "M-17-12 0 5 17-12 M0 5V-24", transform: `rotate(${angle})` }, origin);
+    const options = {
       startRadius: SETTINGS.startRadius*scale,
       endRadius: SETTINGS.endRadius*scale,
       tolerance: Math.min(SETTINGS.tolerance*scale,spec.tolerance ?? Infinity),
@@ -226,12 +239,13 @@
       joinRadius: SETTINGS.inkWidth*scale/2,
       contains: point => point.x >= route.cell.x && point.x <= route.cell.x+route.cell.w
         && point.y >= route.cell.y && point.y <= route.cell.y+route.cell.h,
-    });
-    return { path, start, end, scale, group, ink, origin, direction, destination, tracker, closed: spec.closed, finished: false, resuming: false, inkPath: "" };
+    };
+    const tracker = kind === "dot" ? Geometry.createDotTracker(start,options) : Geometry.createTracker(path,options);
+    return { kind, path, start, end, scale, group, ink, demoInk, origin, direction, destination, tracker, closed: spec.closed, finished: false, resuming: false, inkPath: "" };
   }
 
-  function makeRocket(parent) {
-    const rocket = svgNode("g", { class: "rocket", "aria-hidden": "true" }, parent);
+  function makeRocket(parent, angle) {
+    const rocket = svgNode("g", { class: "rocket", transform:`rotate(${angle})`, "aria-hidden": "true" }, parent);
     svgNode("path", { class: "rocket-flame", d: "M-10-24Q-14-33 0-43 14-33 10-24Z" }, rocket);
     svgNode("path", { class: "rocket-fin", d: "M-15-14Q-33-10-30 15l16-7 M15-14Q33-10 30 15L14 8" }, rocket);
     svgNode("path", { class: "rocket-body", d: "M-16-25Q-24 7 0 27 24 7 16-25Z" }, rocket);
@@ -266,7 +280,7 @@
     const current = EXERCISES[exerciseIndex];
     // Keep the five vertical lanes together on very wide PDIs, with their
     // individual repeat controls aligned beneath the same columns.
-    const areaWidth = mode === "practice" && current.id === "vertical" ? Math.min(width-32,1360) : width-32;
+    const areaWidth = mode === "practice" && current.id.startsWith("vertical") ? Math.min(width-32,1360) : width-32;
     const area = { x: (width-areaWidth)/2, y: lowerTop, w: areaWidth, h: Math.max(1,height-lowerTop-footer) };
     individualControls.style.left = `${area.x}px`;
     individualControls.style.right = `${width-area.x-area.w}px`;
@@ -300,7 +314,7 @@
     picker.value = String(exerciseIndex);
     updateTeacherControls();
     refreshCompletion();
-    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en ${current.id === "vertical" ? "el círculo con el cohete" : "el círculo"} y sigue el camino hasta su estrella.`);
+    board.setAttribute("aria-label", `${current.name}. ${mode === "demo" ? "Demostración" : "Práctica"}. Empieza cada trazo en ${current.id.startsWith("vertical") ? "el círculo con el cohete" : "el círculo"} y sigue el camino hasta su estrella.`);
     if (mode === "demo" && settingsPanel.hidden && !reducedMotion) playDemonstration();
   }
 
@@ -317,7 +331,7 @@
     layout();
   }
 
-  function cancelDemonstration() {
+  function cancelDemonstration(keepInk = false) {
     if (demoFrame !== null) cancelAnimationFrame(demoFrame);
     demoFrame = null;
     demonstration = null;
@@ -327,6 +341,7 @@
     playButton.setAttribute("title","Ver demostración lenta");
     document.querySelector("#demo-symbol").setAttribute("d","m10 5 18 11-18 11Z");
     exercise.setAttribute("data-demonstrating","false");
+    if (!keepInk) routes.forEach(route=>route.strokes.forEach(stroke=>stroke.demoInk.setAttribute("d","")));
     routes.forEach(updateMarkers);
   }
 
@@ -344,7 +359,11 @@
 
     function positionDot() {
       const stroke = session.route.strokes[session.strokeIndex];
-      const point = Geometry.at(stroke.path,stroke.path.length*session.fraction);
+      const along = stroke.path.length*session.fraction;
+      const point = stroke.kind === "dot" ? stroke.start : Geometry.at(stroke.path,along);
+      const points = stroke.kind === "dot" ? session.fraction >= 0.5 ? [point,point] : []
+        : [stroke.start,...stroke.path.segments.filter(segment=>segment.start+segment.length < along).map(segment=>segment.b),point];
+      stroke.demoInk.setAttribute("d",points.map((p,index)=>`${index ? "L" : "M"}${p.x},${p.y}`).join(" "));
       demoDot.setAttribute("cx",point.x);
       demoDot.setAttribute("cy",point.y);
       demoDot.setAttribute("r",18*stroke.scale);
@@ -357,14 +376,14 @@
       if (session.pause) {
         const last = session.strokeIndex === session.route.strokes.length-1;
         if (timestamp-session.started >= (last ? 1000 : 600)) {
-          if (last) { cancelDemonstration(); return; }
+          if (last) { cancelDemonstration(true); return; }
           session.strokeIndex++;
           session.fraction = 0;
           session.started = timestamp;
           session.pause = false;
         }
       } else {
-        const duration = Math.max(SETTINGS.demoMinDuration,Math.min(SETTINGS.demoMaxDuration,stroke.path.length/(SETTINGS.demoSpeed*stroke.scale)*1000));
+        const duration = stroke.kind === "dot" ? 800 : Math.max(SETTINGS.demoMinDuration,Math.min(SETTINGS.demoMaxDuration,stroke.path.length/(SETTINGS.demoSpeed*stroke.scale)*1000));
         session.fraction = Math.min(1,(timestamp-session.started)/duration);
         if (session.fraction === 1) { session.pause = true; session.started = timestamp; }
       }
@@ -499,6 +518,7 @@
     drawMarks(stroke,marks);
     updateMarkers(route);
     updateTeacherControls();
+    if (stroke.tracker.state.done) finishStroke(route,stroke);
   });
 
   board.addEventListener("pointermove", event => {

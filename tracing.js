@@ -81,6 +81,16 @@
       // A lift starts a new ink subpath: never draw a bridge through the air.
       return [{ point, newSegment: true }, { point, newSegment: false }];
     }
+    function straddlesCorner(projected, previous, sample) {
+      // Browser samples may straddle a sharp vertex: arc travel is then longer
+      // than their straight chord. Only permit the immediately adjacent edge,
+      // within one sampling step of that vertex on both sides.
+      const from = path.segments.findIndex(segment=>segment.start+segment.length >= state.along-0.001);
+      const to = path.segments.findIndex(segment=>segment.start+segment.length >= projected.along-0.001);
+      if (Math.abs(from-to) !== 1 || Math.abs(projected.along-state.along) > options.sampleStep*2+0.5) return false;
+      const vertex = path.segments[Math.min(from,to)].b;
+      return distance(previous,vertex) <= options.sampleStep+0.5 && distance(sample,vertex) <= options.sampleStep+0.5;
+    }
     function move(point) {
       const marks = [];
       if (!state.raw || state.done) return marks;
@@ -90,7 +100,8 @@
       let previousRaw = origin;
       for (let index = 1; index <= count; index++) {
         const sample = { x: origin.x+(point.x-origin.x)*index/count, y: origin.y+(point.y-origin.y)*index/count };
-        const step = distance(previousRaw, sample);
+        const previous = previousRaw;
+        const step = distance(previous, sample);
         previousRaw = sample;
         if (step < 0.000001) continue;
         const projected = project(path, sample, state.along);
@@ -101,7 +112,8 @@
         let newSegment = false;
         // Arc travel must fit the actual finger movement. This rejects jumps
         // across a loop or between neighbouring waves, even inside tolerance.
-        if (state.connected && Math.abs(projected.along-state.along) > step*1.6 + 0.5) state.connected = false;
+        if (state.connected && Math.abs(projected.along-state.along) > step*1.6 + 0.5
+          && !straddlesCorner(projected,previous,sample)) state.connected = false;
         if (!state.connected) {
           if (projected.along > state.progress + 0.001) continue;
           state.connected = true;
@@ -123,7 +135,24 @@
     return { state, reset, start, pause, canResume, resume, move };
   }
 
-  const api = { createPath, at, project, createTracker, distance };
+  // A point is a separate contact, not a tiny line or a pre-drawn decoration.
+  // The existing polyline tracker remains unchanged.
+  function createDotTracker(center, options) {
+    const state = { progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false };
+    function reset() {
+      Object.assign(state,{ progress: 0, along: 0, connected: false, raw: null, lastAccepted: null, done: false });
+    }
+    function start(point) {
+      reset();
+      if (!options.contains(point) || distance(point,center) > options.startRadius) return [];
+      state.done = true;
+      state.lastAccepted = point;
+      return [{point,newSegment:true},{point,newSegment:false}];
+    }
+    return { state,reset,start,pause() {},canResume() { return false; },resume() { return null; },move() { return []; } };
+  }
+
+  const api = { createPath, at, project, createTracker, createDotTracker, distance };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.TraceGeometry = api;
 })(globalThis);

@@ -51,7 +51,7 @@ const ink=stroke=>child(stroke,'ink').getAttribute('d');
 function model(stroke) {
   const values=child(stroke,'track').getAttribute('d').match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g).map(Number);
   const points=[];for(let i=0;i<values.length;i+=2)points.push({x:values[i],y:values[i+1]});
-  return G.createPath(points);
+  return points.length===1 ? {points,segments:[],length:0} : G.createPath(points);
 }
 const scale=stroke=>Number(child(stroke,'track').getAttribute('stroke-width'))/100;
 function send(el,name,point,id=1,type='mouse',extra={}) {
@@ -59,7 +59,9 @@ function send(el,name,point,id=1,type='mouse',extra={}) {
 }
 function select(el,index){el('template').value=String(index);el('template').dispatch('change');}
 function gesture(el,stroke,type='mouse',start=0,end=1,id=1) {
-  const m=model(stroke);send(el,'pointerdown',G.at(m,m.length*start),id,type);
+  const m=model(stroke);
+  if(stroke.getAttribute('data-kind')==='dot'){const p=m.points[0],target=start>0 ? {x:p.x+120*scale(stroke),y:p.y} : p;send(el,'pointerdown',target,id,type);send(el,'pointerup',target,id,type);return;}
+  send(el,'pointerdown',G.at(m,m.length*start),id,type);
   const count=Math.ceil(m.length*(end-start)/(3*scale(stroke)));
   for(let i=1;i<=count;i++)send(el,'pointermove',G.at(m,m.length*(start+(end-start)*i/count)),id,type);
   send(el,'pointerup',G.at(m,m.length*end),id,type);
@@ -69,7 +71,7 @@ if (!process.argv.includes('--features-only')) {
 for(const dimensions of [[1280,720],[1920,1080],[375,667],[844,390],[320,320]]) {
   for(const mode of ['demo','practice'])for(const type of ['mouse','touch','pen']) {
     const el=setup(...dimensions);el(mode).dispatch('click');
-    check(el('template').children.length===14,'All 14 families are available');
+    check(el('template').children.length===T.catalog.length,'Every catalog family is available');
     for(let index=0;index<T.catalog.length;index++) {
       select(el,index);const current=groups(el),template=T.catalog[index];
       const expected=mode==='demo'?1:Math.max(1,Math.min(template.copies,Math.floor((dimensions[0]-32)/(template.minWidth||220))));
@@ -114,7 +116,7 @@ for(const type of ['mouse','touch','pen']) {
 }
 
 // Closed loops must actually be walked around, even though start equals end.
-for(const id of ['circle','double-circle','circle-plus']) {
+for(const id of ['circle','oval','square','triangle','rectangle','circle-plus']) {
   const index=T.catalog.findIndex(t=>t.id===id),el=setup();select(el,index);
   const group=groups(el)[0],stroke=strokes(group)[0],m=model(stroke),p=m.points[0];
   send(el,'pointerdown',p);
@@ -184,6 +186,7 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
   const el=setup(1920,1080);helpOn(el);select(el,index);
   const group=groups(el)[0];
   for(const stroke of strokes(group)) {
+    if(stroke.getAttribute('data-kind')==='dot'){gesture(el,stroke,type,0.5);check(!done(stroke)&&ink(stroke)==='','Dot needs its own valid contact even with help');gesture(el,stroke,type);check(done(stroke),'A point is painted by a valid tap');continue;}
     gesture(el,stroke,type,0.5);
     check(!done(stroke)&&ink(stroke)==='','Help still requires the initial start');
     gesture(el,stroke,type,0,0.35);
@@ -194,7 +197,7 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
     send(el,'pointerup',m.points.at(-1),1,type);
     check(ink(stroke)===before&&!done(stroke),'Help cannot resume ahead or skip a gap');
     gesture(el,stroke,type,0.35,1);
-    check(done(stroke)&&ink(stroke).startsWith(before),'Help preserves the previous trace and completes after resuming');
+    check(done(stroke)&&ink(stroke).startsWith(before),`Help preserves and completes ${T.catalog[index].id}/${type}`);
     check((ink(stroke).match(/M/g)||[]).length>=2,'Separate contacts create separate ink subpaths');
   }
   check(done(group),'Every multi-part figure can complete with help');
@@ -244,7 +247,7 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
  check(!done(current[0])&&current.slice(1).every(done),'Keyboard repeat preserves all completed neighbours');
 }
 
-// A slow demonstration only moves a guide, never paints or awards completion.
+// Demonstration paints its own layer without completing or changing child ink.
 {
  const el=setup(1920,1080),group=groups(el)[0],stroke=strokes(group)[0];
  const dot=el('board').children.find(node=>node.getAttribute('class')==='demo-point');
@@ -252,12 +255,12 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
  check(el('exercise').getAttribute('data-demonstrating')==='true','Demo plays once on entering demonstration');
  el.frame(0);el.frame(2500);
  check(Number(dot.getAttribute('cy'))>y0,'The guide advances slowly along the path');
- check(ink(stroke)===''&&!done(group),'Animation never paints a child trace or completes a figure');
+ check(child(stroke,'demo-ink').getAttribute('d').length>10&&ink(stroke)===''&&!done(group),'Animation paints only its preview layer, leaving the exercise pending');
  el.frame(13000);el.frame(15000);
- check(el.pendingFrames()===0&&dot.getAttribute('data-visible')==='false','Demo stops after its single pass');
+ check(el.pendingFrames()===0&&dot.getAttribute('data-visible')==='false'&&child(stroke,'demo-ink').getAttribute('d').length>10,'Demo stops after one pass and retains the painted example');
  el('play-demo').dispatch('click');check(el.pendingFrames()===1,'Teacher can replay the demonstration');
  send(el,'pointerdown',model(stroke).points[0]);
- check(el.pendingFrames()===0,'A real contact cancels the animated guide');
+ check(el.pendingFrames()===0&&child(stroke,'demo-ink').getAttribute('d')==='','A real contact cancels the guide and removes the example ink');
  send(el,'pointercancel',model(stroke).points[0]);
  select(el,T.catalog.findIndex(t=>t.id==='plus'));el.frame(0);el.frame(13000);el.frame(14000);
  const parts=strokes(groups(el)[0]);
@@ -281,4 +284,72 @@ for(const type of ['mouse','touch','pen'])for(let index=0;index<T.catalog.length
  el('play-demo').dispatch('click');el('document').hidden=true;el('document').dispatch('visibilitychange');
  check(el.pendingFrames()===0&&!done(groups(el)[0]),'Backgrounding stops the guide without completing a figure');
 }
-console.log(`${checks} checks passed: 14 families, five classroom improvements and three simultaneous contacts (simulated DOM).`);
+// Requested teaching directions and catalog removals are explicit contracts.
+{
+ const cell={x:0,y:0,w:620,h:600};
+ const build=id=>T.build(id,cell,1);
+ const deltas=stroke=>({x:stroke.points.at(-1).x-stroke.points[0].x,y:stroke.points.at(-1).y-stroke.points[0].y});
+ check(T.catalog.length===20,'The updated catalog contains twenty families');
+ check(['ovals','dots-line','double-circle'].every(id=>!T.catalog.some(t=>t.id===id)),'Removed families are absent from the selector');
+ for(const [id,axis,sign] of [['vertical','y',1],['vertical-up','y',-1],['horizontal','x',1],['horizontal-left','x',-1]])check(deltas(build(id)[0])[axis]*sign>0,`Required direction: ${id}`);
+ check(build('cross').length===2&&build('cross').every(s=>deltas(s).y>0),'Both X diagonals descend');
+ for(const id of ['circle','oval','circle-plus']) {
+   const p=build(id)[0].points;
+   check(Math.abs(p[0].y-Math.min(...p.map(p=>p.y)))<0.001,`${id} starts at the top`);
+   check(p[1].x<p[0].x,`${id} first moves towards the left`);
+ }
+ const castle=build('castle')[0].points;
+ for(const [index,axis,sign] of [[0,'x',-1],[1,'y',-1],[2,'x',1],[3,'y',1],[4,'x',1]])check((castle[index+1][axis]-castle[index][axis])*sign>0,`Castle direction ${index+1}`);
+ for(const id of ['square','oval','triangle','rectangle']) {
+   const s=build(id)[0];check(s.closed&&G.distance(s.points[0],s.points.at(-1))<0.001,`${id} is a complete closed contour`);
+ }
+ const el=setup();select(el,T.catalog.findIndex(t=>t.id==='vertical-up'));
+ const origin=child(strokes(groups(el)[0])[0],'origin');
+ check(child(child(origin,'start-art'),'rocket').getAttribute('transform')==='rotate(-180)','Ascending rocket points upwards');
+}
+
+// A dot is created by a separate real contact, never by finishing its neighbour.
+for(const type of ['mouse','touch','pen']) {
+ const el=setup(1920,1080);select(el,T.catalog.findIndex(t=>t.id==='bars-dots'));
+ const group=groups(el)[0],[bar,dot]=strokes(group),point=model(dot).points[0];
+ send(el,'pointerdown',point,1,type);send(el,'pointerup',point,1,type);
+ check(ink(dot)===''&&!done(dot),'The dot cannot be marked before its bar');
+ gesture(el,bar,type);
+ check(done(bar)&&!done(group)&&!done(dot)&&ink(dot)==='','Finishing the bar leaves the dot empty');
+ send(el,'pointermove',point,1,type);
+ check(ink(dot)==='','Continuing the previous gesture cannot auto-paint the dot');
+ const real={x:point.x+18,y:point.y+12};
+ send(el,'pointerdown',real,1,type);send(el,'pointerup',real,1,type);
+ check(done(dot)&&done(group)&&ink(dot).includes(`${real.x.toFixed(2)},${real.y.toFixed(2)}`),'A separate tap paints the child actual point and completes the figure');
+ const goal=child(dot,'destination').getAttribute('transform').match(/-?\d+(?:\.\d+)?/g).map(Number);
+ check(goal[1]-point.y >= (54+18+68)*scale(dot),'The goal halo cannot cover a point placed anywhere in the accepted tap area');
+ el('individual-controls').children[0].dispatch('click');
+ check(strokes(group).every(s=>!done(s)&&ink(s)===''),'Repeating clears the bar and its user-created dot');
+}
+
+// The painted demonstration includes the point but never awards either part.
+{
+ const el=setup(1920,1080);select(el,T.catalog.findIndex(t=>t.id==='bars-dots'));
+ const group=groups(el)[0],[bar,dot]=strokes(group);
+ el.frame(0);el.frame(13000);el.frame(14000);el.frame(14500);
+ check(child(bar,'demo-ink').getAttribute('d').length>10&&child(dot,'demo-ink').getAttribute('d').length>10,'The demonstration paints both the bar and the point in order');
+ check(strokes(group).every(s=>ink(s)===''&&!done(s)),'Demonstrated parts remain pending for the child');
+ el.frame(15000);el.frame(16000);
+ check(el.pendingFrames()===0&&strokes(group).every(s=>child(s,'demo-ink').getAttribute('d')!==''),'The full painted example remains after the demonstration');
+ el('play-demo').dispatch('click');
+ check(child(dot,'demo-ink').getAttribute('d')==='','Replaying clears the previous example point');
+ el('practice').dispatch('click');
+ check(groups(el).every(g=>strokes(g).every(s=>child(s,'demo-ink').getAttribute('d')==='')),'Practice starts without teacher preview ink');
+}
+
+// Nearby vertex sampling is allowed, but taking a straight shortcut is not.
+for(const id of ['triangle','castle','zigzag','surf-wave']) {
+ const el=setup(1920,1080);el('practice').dispatch('click');select(el,T.catalog.findIndex(t=>t.id===id));
+ const stroke=strokes(groups(el)[0])[0],m=model(stroke);
+ const shortcut=id==='surf-wave' ? {x:(m.points[0].x+m.points.at(-1).x)/2,y:m.points[0].y} : G.at(m,m.length*0.5);
+ send(el,'pointerdown',m.points[0]);send(el,'pointermove',shortcut);send(el,'pointermove',m.points.at(-1));send(el,'pointerup',m.points.at(-1));
+ check(!done(stroke),`${id}: crossing the interior cannot complete the path`);
+ gesture(el,stroke);
+ check(done(stroke),`${id}: following the corners completes the path`);
+}
+console.log(`${checks} checks passed: ${T.catalog.length} families, five classroom improvements and three simultaneous contacts (simulated DOM).`);

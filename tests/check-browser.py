@@ -38,6 +38,11 @@ def finished(node):
 
 def mouse_trace(page, stroke, start=0, end=1):
     point = stroke_model(stroke)
+    if stroke.get_attribute('data-kind') == 'dot':
+        x,y = point(0)
+        if start > 0: x += 120*point.scale
+        page.mouse.click(x,y)
+        return
     page.mouse.move(*point(start))
     page.mouse.down()
     count = max(60,math.ceil(point.length*(end-start)/10))
@@ -60,10 +65,11 @@ with sync_playwright() as p:
         page.on('pageerror',lambda error:errors.append(str(error)))
         page.goto((ROOT/'index.html').as_uri())
         page.locator('#start').click()
-        assert page.locator('#template option').count() == 14
+        template_count = page.locator('#template option').count()
+        assert template_count == 20
         for mode in ['demo','practice']:
             page.locator('#'+mode).click()
-            for template in range(14):
+            for template in range(template_count):
                 page.select_option('#template',str(template))
                 figures = page.locator('.route')
                 for figure in figures.all():
@@ -152,6 +158,7 @@ with sync_playwright() as p:
         page.wait_for_timeout(1100)
         assert float(dot.get_attribute('cy')) > y0
         assert page.locator('.ink').first.get_attribute('d') == ''
+        assert page.locator('.demo-ink').first.get_attribute('d') != ''
         assert not finished(page.locator('.route').first)
         page.locator('#practice').click()
         assert page.locator('#exercise').get_attribute('data-demonstrating') == 'false'
@@ -162,4 +169,4 @@ with sync_playwright() as p:
         assert not errors,errors
         context.close()
     browser.close()
-print('Browser checks passed: 14 families, all gestures, native multi-touch, lower layout, start-only and no scroll.')
+print('Browser checks passed: 20 families, all gestures, native multi-touch, lower layout, start-only and no scroll.')
