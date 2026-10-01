@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#fffaf0">
+    <title>TRAZOS · Grafomotricidad</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main id="app">
+      <section id="home" class="screen home" aria-labelledby="title">
+        <h1 id="title">TRAZOS</h1>
+        <button id="start" class="button start-button" type="button">TRAZOS RECTOS</button>
+      </section>
+
+      <section id="exercise" class="screen exercise" aria-label="Ejercicio de trazado" hidden>
+        <button id="home-button" class="home-button" type="button" aria-label="Volver al inicio">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 14 16 5l11 9v13H19v-9h-6v9H5Z" /></svg>
+        </button>
+        <svg id="board" role="img" aria-label="Sigue el camino desde el círculo hasta la estrella">
+          <path id="track-border" />
+          <path id="track" />
+          <path id="ink" />
+          <g id="destination">
+            <circle class="star-halo" r="68" />
+            <path class="star" d="M0-53 15-19 52-16 24 9 32 46 0 27-32 46-24 9-52-16-15-19Z" />
+          </g>
+          <g id="origin">
+            <circle id="start-disc" />
+            <path id="direction" d="M-17-12 0 5 17-12 M0 5V-24" />
+          </g>
+        </svg>
+        <div id="completed" class="completed" hidden>
+          <p class="sr-only" role="status">¡Has llegado a la estrella!</p>
+          <button id="repeat" class="button repeat-button" type="button">REPETIR</button>
+          <button id="next" class="button next-button" type="button">SIGUIENTE</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
